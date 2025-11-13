@@ -1,0 +1,31 @@
+[project]
+name = "qforce"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "lukasmki", email = "lukasarus@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "ase>=3.26.0",
+    "calkeeper>=0.1.0",
+    "networkx>=3.5",
+    "numba>=0.62.1",
+    "numpy>=2.3.4",
+    "pulp>=3.3.0",
+    "pycolt>=0.6.0",
+    "scikit-learn>=1.7.2",
+    "seaborn>=0.13.2",
+]
+
+[project.scripts]
+qforce = "qforce.cli:run"
+
+[build-system]
+requires = ["uv_build>=0.9.1,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv_build]
+src-layout = true
+package-data = {"qforce"  = ["data/*"]}

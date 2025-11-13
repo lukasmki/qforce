@@ -1,40 +1,155 @@
 from contextlib import contextmanager
 from copy import deepcopy
+import numpy as np
 #
 from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
-from .non_dihedral_terms import (BondTerm, AngleTerm, UreyAngleTerm, CrossBondAngleTerm)
+from .bond_and_angle_terms import HarmonicBondTerm, MorseBondTerm, HarmonicAngleTerm, CosineAngleTerm, UreyBradleyTerm
+from .coupling_terms import (CrossBondAngleTerm, CrossBondBondTerm, CrossAngleAngleTerm, CrossBondCosineAngleTerm,
+                             CrossCosineAngleAngleTerm, CrossDihedBondTerm, CrossDihedAngleTerm,
+                             CrossCosCubeDihedAngleTerm, CrossCosCubeDihedBondTerm,
+                             CrossCosCubeDihedAngleAngleTerm, CrossDihedAngleAngleTerm)
 from .non_bonded_terms import NonBondedTerms
+from .charge_flux_terms import ChargeFluxTerms
+from .local_frame import LocalFrameTerms
 #
 from .base import MappingIterator
-from .baseterms import TermFactory
+from .baseterms import TermFactory, EmptyTerm
+from .selectors import to_selector
+from .helper import DefaultFalseDict
+
+
+def split_name(name):
+    """split the name by '/' and return the names"""
+    maintype, subtype = name.split('/')
+    maintype = maintype.strip()
+    subtype = subtype.strip()
+    return maintype, subtype
 
 
 class Terms(MappingIterator):
 
-    _term_factories = {
-            'bond': BondTerm,
-            'angle': AngleTerm,
-            'urey': UreyAngleTerm,
-            '_cross_bond_angle': CrossBondAngleTerm,
-            'dihedral': DihedralTerms,
-            'non_bonded': NonBondedTerms,
-    }
-    _always_on = ['bond', 'angle']
-    _default_off = ['_cross_bond_angle']
+    _term_factories = to_selector({
+        'bond': {
+            'harmonic': HarmonicBondTerm,
+            'morse': MorseBondTerm,
+            },
+        'angle': {
+            'harmonic': HarmonicAngleTerm,
+            'cosine': CosineAngleTerm,
+            },
+        'cross_bond_bond': CrossBondBondTerm,
+        #
+        'urey': UreyBradleyTerm,
+        #
+        'cross_bond_angle': {
+            'bond_angle': CrossBondAngleTerm,
+            'bond_cos_angle': CrossBondCosineAngleTerm,
+        },
+        #
+        'cross_angle_angle': {
+            'harmonic': CrossAngleAngleTerm,
+            'cosine': CrossCosineAngleAngleTerm,
+        },
+        #
+        'cross_dihed_angle': {
+            'cos_cube': CrossCosCubeDihedAngleTerm,
+            'periodic': CrossDihedAngleTerm
+        },
+        #
+        'cross_dihed_bond': {
+            'cos_cube': CrossCosCubeDihedBondTerm,
+            'periodic': CrossDihedBondTerm
+        },
+        'cross_dihed_angle_angle': {
+            'cos_cube': CrossCosCubeDihedAngleAngleTerm,
+            'periodic': CrossDihedAngleAngleTerm
+        },
+        #
+        'dihedral': DihedralTerms,
+        #
+        'non_bonded': NonBondedTerms,
+        #
+        'charge_flux': ChargeFluxTerms,
+        #
+        'local_frame': LocalFrameTerms,
+    }, EmptyTerm)
 
     def __init__(self, terms, ignore, not_fit_terms):
         MappingIterator.__init__(self, terms, ignore)
-        self.n_fitted_terms = self._set_fit_term_idx(not_fit_terms)
+        self.n_fitted_terms, self.n_fitted_flux_terms = self._set_fit_term_idx(not_fit_terms)
         self.term_names = [name for name in self._term_factories.keys() if name not in ignore]
         self._term_paths = self._get_term_paths(terms)
 
+        self.average_equivalent_terms()
+
+    def average_equivalent_terms(self):
+        main_terms = {}
+        main_equs = {}
+
+        for term in list(self['bond']) + list(self['angle']):
+            if isinstance(term.equ, list):
+                equ = term.equ[0]
+            else:
+                equ = term.equ
+            if term.idx in main_equs:
+                main_equs[term.idx].append(equ)
+            else:
+                main_equs[term.idx] = [equ]
+
+            main_terms[equ] = term.idx
+
+        for idx, vals in main_equs.items():
+            main_equs[idx] = np.min(vals)
+
+        for term in self:
+            if isinstance(term.equ, list) or isinstance(term.equ, np.ndarray):
+                term.equ = np.array(term.equ)
+                for i, equ in enumerate(term.equ):
+                    if equ in main_terms:
+                        equ_idx = main_terms[equ]
+                        term.equ[i] = main_equs[equ_idx]
+            else:
+                if term.equ in main_terms:
+                    equ_idx = main_terms[term.equ]
+                    term.equ = main_equs[equ_idx]
+
+
     @classmethod
-    def from_topology(cls, config, topo, non_bonded, not_fit=['dihedral/flexible', 'non_bonded']):
-        ignore = [name for name, term_enabled in config.__dict__.items() if not term_enabled]
-        not_fit_terms = [term for term in not_fit if term not in ignore]
-        terms = {name: factory.get_terms(topo, non_bonded)
-                 for name, factory in cls._term_factories.items() if name not in ignore}
+    def add_terms(cls, terms, name, termcase, topo, non_bonded, settings=None):
+        factory = cls._term_factories[name].get_factory(termcase)
+        _terms = factory.get_terms(topo, non_bonded, settings)
+        if _terms is not None:
+            terms[name] = _terms
+
+    @classmethod
+    def from_topology(cls, config, topo, non_bonded, ff, *, not_fit=['non_bonded', 'charge_flux', 'local_frame']):
+        config = config.__dict__
+        terms = {}
+        factories = {}
+        ignore = []
+        # handle terms
+        for term in ff.terms():
+            setting = config[term]
+            # get if term is turned on/off
+            if setting == 'off':
+                # ignore terms that are turned off
+                ignore.append(term)
+                continue
+            #
+            if '/' not in term:
+                cls.add_terms(terms, term, setting, topo, non_bonded)
+            else:
+                maintype, subtype = split_name(term)
+                if maintype not in factories:
+                    factories[maintype] = DefaultFalseDict()
+                # Handle the on case in a better way!
+                factories[maintype][subtype] = setting
+        # get factory terms, currently no selector for termfactories
+        for term, settings in factories.items():
+            cls.add_terms(terms, term, 'on', topo, non_bonded, settings)
+
+        not_fit_terms = [term for term in not_fit if term not in ignore and term in config.keys()]
         return cls(terms, ignore, not_fit_terms)
 
     @classmethod
@@ -63,20 +178,6 @@ class Terms(MappingIterator):
             raise ValueError('New term needs to be a TermFactory!')
         cls._term_factories[name] = term
 
-    @classmethod
-    def get_questions(cls):
-        tpl = '# Turn {key} FF term on or off\n{key} = {default} :: bool\n\n'
-        questions = ''
-        for name, term in cls._term_factories.items():
-            if name not in cls._always_on:
-                if term._multiple_terms:
-                    for sub_name, sub_term in term._term_types.items():
-                        questions += tpl.format(key=f'{name}/{sub_name}',
-                                                default=(sub_name not in term._default_off))
-                else:
-                    questions += tpl.format(key=name, default=(name not in cls._default_off))
-        return questions
-
     @contextmanager
     def add_ignore(self, ignore_terms):
         self.add_ignore_keys(ignore_terms)
@@ -99,14 +200,30 @@ class Terms(MappingIterator):
             names = list(set(str(term) for term in self))
             for term in self:
                 term.set_idx(names.index(str(term)))
-
         n_fitted_terms = len(names)
+
+        if 'charge_flux' not in self:
+            n_fitted_flux_terms = 0
+        else:
+            names = list(set(str(term) for term in self['charge_flux']))
+            for term in self['charge_flux']:
+                term.set_flux_idx(names.index(str(term)))
+            n_fitted_flux_terms = len(names)
+
+        # if fit_flexible is True and 'dihedral/flexible' in self:
+        #     names = list(set(str(term) for term in self['dihedral/flexible']))
+        #     if len(names) != 0:
+        #         for term in self['dihedral/flexible']:
+        #             term.set_idx(n_fitted_terms + term.idx_buffer*names.index(str(term)))
+        #         n_fitted_terms += len(names)*term.idx_buffer
+        #         if 'dihedral/flexible' in not_fit_terms:
+        #             not_fit_terms.remove('dihedral/flexible')
 
         for key in not_fit_terms:
             for term in self[key]:
                 term.set_idx(n_fitted_terms)
 
-        return n_fitted_terms
+        return n_fitted_terms, n_fitted_flux_terms
 
     def _get_term_paths(self, terms):
         paths = {}

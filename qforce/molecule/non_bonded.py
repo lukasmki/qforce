@@ -3,17 +3,18 @@ import numpy as np
 import pulp
 import sys
 import os
-from scipy.optimize import curve_fit
 from itertools import combinations_with_replacement
 #
 from ..elements import ATOM_SYM
-
+from ..qm.gdma import compute_gdma
 
 class NonBonded():
-    def __init__(self, n_atoms, q, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions, pairs,
-                 n_excl, comb_rule, fudge_lj, fudge_q, h_cap, alpha):
+    def __init__(self, n_atoms, q, dipole, quadrupole, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions, pairs,
+                 n_excl, comb_rule, fudge_lj, fudge_q, h_cap):
         self.n_atoms = n_atoms
         self.q = q
+        self.dipole = dipole
+        self.quadrupole = quadrupole
         self.lj_types = lj_types
         self.lj_pairs = lj_pairs
         self.lj_1_4 = lj_1_4
@@ -25,61 +26,55 @@ class NonBonded():
         self.exclusions = exclusions
         self.pairs = pairs
         self.n_excl = n_excl
-        self.alpha = {key: alpha[key] for key in sorted(alpha.keys())}  # sort the dictionary
-        self.alpha_map = {key: i+self.n_atoms for i, key in enumerate(self.alpha.keys())}
 
     @classmethod
     def from_topology(cls, config, job, qm_out, topo, ext_q, ext_lj):
+        dipole = np.zeros((qm_out.n_atoms, 3))
+        quadrupole = np.zeros((qm_out.n_atoms, 5))
+
         comb_rule, fudge_lj, fudge_q, h_cap = set_non_bonded_props(config)
 
-        exclusions = cls._set_custom_exclusions_and_pairs(config.exclusions)
-        pairs = cls._set_custom_exclusions_and_pairs(config.pairs)
-        if config.n_excl == 2:
-            pairs = cls._set_1_4_pairs(topo, exclusions, pairs)
+        exclusions = cls._set_custom_exclusions_and_pairs(job.logger, config.exclusions)
+        pairs = cls._set_custom_exclusions_and_pairs(job.logger, config.pairs)
 
-        # RUN D4 if necessary
-        if config._d4:
-            q, lj_a, lj_b = handle_d4(job, comb_rule, qm_out, topo)
+        if config.n_excl == 2:
+            pairs, exclusions = cls._set_1_4_pairs_and_exclusions(topo, exclusions, pairs)
 
         # CHARGES
+        if config.do_multipole:
+            if not qm_out.fchk_file:
+                raise KeyError('QM method does not have fchk file - This is not supported for GDMA')
+            # dipoles and quads are averaged later
+            q, dipole, quadrupole = compute_gdma(job, config.gdma_exec, qm_out.fchk_file)
         elif ext_q:
             q = np.array(ext_q)
         elif config.ext_charges:
             q = np.loadtxt(f'{job.dir}/ext_q', comments=['#', ';'])
         else:
             if config.charge_scaling != 1.0 and qm_out.charge != 0:
-                print('WARNING: Your system has a net charge and therefore point charges for the '
-                      'FF cannot be scaled.\n         If you will simulate in the condensed phase'
-                      ', you might want to account for condensed\n         phase polarization in '
-                      'another way (Hartree-Fock charges, implicit solvent, ...).\n')
+                job.logger.warning('The system has a net charge and therefore point charges '
+                                   'for the FF cannot be scaled.\n         If you will '
+                                   'simulate in the condensed phase, you might want to account '
+                                   'for condensed\n         phase polarization in '
+                                   'another way (Hartree-Fock charges, implicit solvent, ...).\n')
                 q = qm_out.point_charges
             elif config.charge_scaling != 1.0 and qm_out.charge == 0:
                 q = qm_out.point_charges * config.charge_scaling
-                print(f'NOTE: QM atomic charges are scaled by {config.charge_scaling} to account '
-                      'for the condensed phase polarization.\n      Set this value to 1 for gas '
-                      'phase simulations.\n')
+                job.logger.note(f'QM atomic charges are scaled by {config.charge_scaling} to '
+                                'account for the condensed phase polarization.\n'
+                                '      Set this value to 1 for gas '
+                                'phase simulations.\n')
             else:
                 q = qm_out.point_charges
 
         q = average_equivalent_terms(topo, [q])[0]
-        q = sum_charges_to_qtotal(topo, q)
+        q = sum_charges_to_qtotal(job.logger, topo, q)
 
-        # LENNARD-JONES
-        if config._d4:
-            lj_types, lj_pairs = set_qforce_lennard_jones(topo, comb_rule, lj_a, lj_b)
-            lj_1_4 = lj_pairs
-            print('WARNING: You are using Q-Force Lennard-Jones parameters. This is unfinished.',
-                  '\nYou are advised to provide external LJ parameters for production runs.\n')
-        else:
-            lj_types = get_external_lennard_jones(config, topo, q, job, ext_lj)
-            lj_pairs, lj_1_4, lj_atomic_number = set_external_lennard_jones(job, config, comb_rule,
-                                                                            lj_types, ext_lj,
-                                                                            h_cap)
-        # POLARIZABILITY
-        alpha = set_polar(q, topo, config, job)
+        lj_types = get_external_lennard_jones(config, topo, q, job, ext_lj)
+        lj_pairs, lj_1_4, lj_atomic_number = set_external_lennard_jones(job, config, comb_rule, lj_types, ext_lj, h_cap)
 
-        return cls(topo.n_atoms, q, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions,
-                   pairs, config.n_excl, comb_rule, fudge_lj, fudge_q, h_cap, alpha)
+        return cls(topo.n_atoms, q, dipole, quadrupole, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions,
+                   pairs, config.n_excl, comb_rule, fudge_lj, fudge_q, h_cap)
 
     @classmethod
     def subset(cls, non_bonded, frag_charges, mapping):
@@ -87,10 +82,13 @@ class NonBonded():
         rev_map = {v: k for k, v in mapping.items()}
         h_cap = non_bonded.h_cap
 
-        if list(frag_charges) != []:
+        if len(frag_charges) != 0:
             q = frag_charges
         else:
             q = np.array([non_bonded.q[rev_map[i]] for i in range(n_atoms)])
+
+        dipole = np.array([non_bonded.dipole[rev_map[i]] for i in range(n_atoms)])
+        quadrupole = np.array([non_bonded.quadrupole[rev_map[i]] for i in range(n_atoms)])
 
         lj_types = [non_bonded.lj_types[rev_map[i]] for i in range(n_atoms)]
         lj_pairs = {key: val for key, val in list(non_bonded.lj_pairs.items())
@@ -105,15 +103,11 @@ class NonBonded():
         pairs = [(mapping[pair[0]], mapping[pair[1]]) for pair in non_bonded.pairs if
                  pair[0] in mapping.keys() and pair[1] in mapping.keys()]
 
-        alpha = {mapping[key]: val for key, val in list(non_bonded.alpha.items())
-                 if key in mapping.keys()}
-
-        return cls(n_atoms, q, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions, pairs,
-                   non_bonded.n_excl, non_bonded.comb_rule, non_bonded.fudge_lj,
-                   non_bonded.fudge_q, non_bonded.h_cap, alpha)
+        return cls(n_atoms, q, dipole, quadrupole, lj_types, lj_pairs, lj_1_4, lj_atomic_number, exclusions, pairs,
+                   non_bonded.n_excl, non_bonded.comb_rule, non_bonded.fudge_lj, non_bonded.fudge_q, non_bonded.h_cap)
 
     @staticmethod
-    def _set_custom_exclusions_and_pairs(value):
+    def _set_custom_exclusions_and_pairs(logger, value):
         selection = []
         if value:
             for line in value.split('\n'):
@@ -125,26 +119,28 @@ class NonBonded():
                         if pair not in selection:
                             selection.append(pair)
                 elif len(line) == 1:
-                    print('WARNING: Exclusion/Pair lines should contain at least two atom IDs:\n',
-                          'First entry is excluded from / paired to all the following entries.\n',
-                          f'Ignoring the line: {line[0]}\n')
+                    logger.warning('Exclusion/Pair lines should contain at least two atom IDs:\n'
+                                   'First entry is excluded from / paired to all the following '
+                                   f'entries.\nIgnoring the line: {line[0]}\n')
         return selection
 
     @staticmethod
-    def _set_1_4_pairs(topo, exclusions, pairs):
+    def _set_1_4_pairs_and_exclusions(topo, exclusions, pairs):
         for i in range(topo.n_atoms):
             for neigh in topo.neighbors[2][i]:
-                if (i < neigh and [i, neigh] not in pairs and (i, neigh) not in exclusions and
-                        not any([{i, neigh}.issubset(ring) for ring in topo.rings])):
-                    pairs.append((i, neigh))
-        return pairs
+                if i < neigh and [i, neigh] not in pairs and (i, neigh) not in exclusions:
+                    if any([{i, neigh}.issubset(ring) for ring in topo.rings]):
+                        exclusions.append((i, neigh))
+                    else:
+                        pairs.append((i, neigh))
+        return pairs, exclusions
 
 
 def get_external_lennard_jones(config, topo, q, job, ext_lj):
     if config.lennard_jones == 'gromos_auto':
-        lj_types = determine_gromos_atom_types(topo, q)
+        lj_types = determine_gromos_atom_types(job.logger, topo, q)
     elif config.lennard_jones == 'opls_auto':
-        lj_types = determine_opls_atom_types(topo, q)
+        lj_types = determine_opls_atom_types(job.logger, topo, q)
     elif ext_lj:
         if 'lj_types' not in ext_lj:
             sys.exit('ERROR: You have not provided the "lj_types" list in the "ext_lj" '
@@ -161,23 +157,19 @@ def get_external_lennard_jones(config, topo, q, job, ext_lj):
             lj_types = np.loadtxt(f'{job.dir}/ext_lj', dtype='str',
                                   comments=['#', ';']).ravel()
         else:
-            sys.exit(f'ERROR: Manual LJ types requested ({config.lennard_jones}) but the '
-                     'atom types are not provided in the "ext_lj" file in the job'
-                     ' directory.\nPlease provide there an atom type for each atom in the '
-                     'same order as your coordinate file.\n')
+            job.logger.error(f'Manual LJ types requested ({config.lennard_jones}) but the '
+                             'atom types are not provided in the "ext_lj" file in the job'
+                             ' directory.\nPlease provide there an atom type for each atom in the '
+                             'same order as your coordinate file.\n')
         if lj_types.size != topo.n_atoms:
-            sys.exit('ERROR: Format of your "ext_lj" file is wrong.\nPlease provide there '
-                     'an atom type for each atom in the same order as your coordinate file'
-                     '.\n')
+            job.logger.error('Format of your "ext_lj" file is wrong.\nPlease provide there '
+                             'an atom type for each atom in the same order as your coordinate file'
+                             '.\n')
     return lj_types
 
 
 def set_non_bonded_props(config):
-    if config._d4 == 'd4':
-        comb_rule = 2
-        fudge_lj, fudge_q = 1.0, 1.0
-
-    elif config.lennard_jones == 'ext':
+    if config.lennard_jones == 'ext':
         if (not config.ext_lj_fudge or not config.ext_q_fudge or not config.ext_comb_rule or
                 not config.ext_h_cap):
             sys.exit('ERROR: External set of Lennard-Jones interactions requested but not all '
@@ -221,7 +213,7 @@ class Neighbors(list):
     def generate(cls, topo, atomid):
         neighbors = []
         for neigh in topo.neighbors[0][atomid]:
-            elem = topo.elements[neigh]
+            elem = topo.atomids[neigh]
             b_order = topo.edge(atomid, neigh)['order']
             in_ring = topo.edge(atomid, neigh)['n_rings'] > 0
             n_bonds = topo.node(neigh)['n_bonds']
@@ -240,7 +232,7 @@ class Neighbors(list):
         return len(matched)
 
 
-def determine_opls_atom_types(topo, q):
+def determine_opls_atom_types(logger, topo, q):
     """
     Carbon
     #CA (aromatic): opls_145  ---- LigParGen puts C=N a CA atomtype, why???
@@ -274,10 +266,10 @@ def determine_opls_atom_types(topo, q):
     S (S...): opls_200
     """
 
-    print('NOTE: Automatic atom-type determination (used only for LJ interactions) is new. \n'
-          '      Double check your atom types or enter them manually.\n')
+    logger.note('Automatic atom-type determination (used only for LJ interactions) is new. \n'
+                '      Double check your atom types or enter them manually.\n')
     a_types = []
-    for atomid, elem in enumerate(topo.elements):
+    for atomid, elem in enumerate(topo.atomids):
 
         neighs = Neighbors.generate(topo, atomid)
 
@@ -358,15 +350,15 @@ def determine_opls_atom_types(topo, q):
     return a_types
 
 
-def determine_gromos_atom_types(topo, q):
-    print('NOTE: Automatic atom-type determination (used only for LJ interactions) is new. \n'
-          '      Double check your atom types or enter them manually.\n')
+def determine_gromos_atom_types(logger, topo, q):
+    logger.note('Automatic atom-type determination (used only for LJ interactions) is new. \n'
+                '      Double check your atom types or enter them manually.\n')
     a_types = []
-    for i, elem in enumerate(topo.elements):
-        elem_neigh = [topo.elements[atom] for atom in topo.neighbors[0][i]]
+    for i, elem in enumerate(topo.atomids):
+        elem_neigh = [topo.atomids[atom] for atom in topo.neighbors[0][i]]
 
         if elem == 1:
-            if topo.elements[topo.neighbors[0][i]] == 6:
+            if topo.atomids[topo.neighbors[0][i]] == 6:
                 a_type = 'HC'  # bound to C
             else:
                 a_type = 'HS14'
@@ -375,7 +367,7 @@ def determine_gromos_atom_types(topo, q):
             in_ring_and_conj = [all([topo.edge(*edge)['order'] >= 1.25,
                                 topo.edge(*edge)['in_ring']])for edge in topo.graph.edges(i)]
             united_charge = q[i] + sum([q[j] for j in topo.neighbors[0][i] if
-                                        topo.elements[j] == 1])
+                                        topo.atomids[j] == 1])
 
             if any(in_ring_and_conj):
                 a_type = 'CAro'
@@ -402,7 +394,7 @@ def determine_gromos_atom_types(topo, q):
                 a_type = 'OE'
             elif len(elem_neigh) == 1:
                 a_type = 'OEOpt'  # has 1 bond and it is to C
-            # if 1 in topo.elements[topo.neighbors[0][i]]:
+            # if 1 in topo.atomids[topo.neighbors[0][i]]:
             else:
                 a_type = 'OAlc'
 
@@ -412,46 +404,6 @@ def determine_gromos_atom_types(topo, q):
         a_types.append(a_type)
 
     return a_types
-
-
-def set_polar(q, topo, config, job):
-    polar_dict = {1: 0.45330, 6: 1.30300, 7: 0.98840, 8: 0.83690, 16: 2.47400}
-    # polar_dict = { 1: 0.000413835,  6: 0.00145,  7: 0.000971573,
-    #               8: 0.000851973,  9: 0.000444747, 16: 0.002474448,
-    #               17: 0.002400281, 35: 0.003492921, 53: 0.005481056}
-    # polar_dict = { 1: 0.000413835,  6: 0.001288599,  7: 0.000971573,
-    #               8: 0.000851973,  9: 0.000444747, 16: 0.002474448,
-    #               17: 0.002400281, 35: 0.003492921, 53: 0.005481056}
-    # polar_dict = { 1: 0.000205221,  6: 0.000974759,  7: 0.000442405,
-    #               8: 0.000343551,  9: 0.000220884, 16: 0.001610042,
-    #               17: 0.000994749, 35: 0.001828362, 53: 0.002964895}
-    alpha_dict, alpha = {}, []
-
-    if config._polar:
-        if config.ext_alpha:
-            atoms, alpha = np.loadtxt(f'{job.dir}/ext_alpha', unpack=True,
-                                      comments=['#', ';'])
-            atoms = atoms.astype(dtype='int') - 1
-            alpha *= 1000  # convert from nm3 to ang3
-        else:
-            atoms = np.arange(topo.n_atoms)
-            for elem in topo.elements:
-                alpha.append(polar_dict[elem])
-
-        for i, a in zip(atoms, alpha):
-            alpha_dict[i] = a
-
-    # EPS0 = 1389.35458  # kJ*ang/mol/e2
-    # for q, elem in zip(q, topo.elements):
-    #     polar_fcs.append(64.0 * EPS0 / polar_dict[elem])
-
-    # for i in range(topo.n_atoms):
-    #     for j in range(i+1, topo.n_atoms):
-    #         close_neighbor = any([j in topo.neighbors[c][i] for c in range(config.n_excl)])
-    #         if not close_neighbor and (i, j) not in config.exclusions:
-    #             polar_pairs.append([i, j])
-
-    return alpha_dict
 
 
 def set_qforce_lennard_jones(topo, comb_rule, lj_a, lj_b):
@@ -499,12 +451,6 @@ def set_external_lennard_jones(job, config, comb_rule, lj_types, ext_lj, h_cap):
 
         lj_pairs[comb] = get_c6_c12_for_diff_comb_rules(comb_rule, params)
 
-    if config._polar:
-        polar_not_scale_c6 = set_polar_not_scale_c6(config._polar_not_scale_c6)
-        for key, val in lj_pairs.items():
-            if (key[0] not in polar_not_scale_c6
-                    and key[1] not in polar_not_scale_c6):
-                val[0] *= config._polar_c6_scale
 
     return lj_pairs, lj_1_4, atomic_numbers
 
@@ -615,7 +561,7 @@ def average_equivalent_terms(topo, terms):
     return avg_terms
 
 
-def sum_charges_to_qtotal(topo, q):
+def sum_charges_to_qtotal(logger, topo, q):
     total = q.sum()
     q_integer = int(round(total))
 
@@ -641,105 +587,6 @@ def sum_charges_to_qtotal(topo, q):
             for i, v in enumerate(prob.variables()):
                 q[topo.list[i]] -= sign * v.varValue / 100000
         else:
-            print('Failed to equate total of charges to the total charge of '
-                  'the system. Do so manually')
+            logger.info('Failed to equate total of charges to the total charge of '
+                        'the system. Do so manually')
     return q
-
-
-def handle_d4(job, comb_rule, qm_out, topo):
-    n_more = 0
-    c6, c8, alpha, r_rel, q = [], [], [], [], []
-    lj_a, lj_b = None, None
-
-    d4_out = run_d4(qm_out.charge)
-
-    with open(f'{job.dir}/dftd4_results', 'w') as dftd4_file:
-        dftd4_file.write(d4_out)
-
-    for line in d4_out.split('\n'):
-        if 'number of atoms' in line:
-            n_atoms = int(line.split()[4])
-        elif 'covCN                  q              C6A' in line:
-            n_more = n_atoms
-        elif n_more > 0:
-            line = line.split()
-            q.append(float(line[4]))
-            c6.append(float(line[5]))
-            c8.append(float(line[6]))
-            alpha.append(float(line[7]))
-            r_rel.append(float(line[8])**(1/3))
-            n_more -= 1
-
-    q, c6, c8, alpha, r_rel = average_equivalent_terms(topo, [q, c6, c8, alpha, r_rel])
-    c6, c8, alpha, r_rel = [term[topo.unique_atomids] for term in [c6, c8, alpha, r_rel]]
-    lj_a, lj_b = calc_c6_c12(comb_rule, qm_out, topo, c6, c8, r_rel)
-    return q, lj_a, lj_b
-
-
-def run_d4(charge):
-    dftd4 = subprocess.Popen(['dftd4', '-c', str(charge), 'opt.xyz'],
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    dftd4.wait()
-    check_termination(dftd4)
-    out = dftd4.communicate()[0].decode("utf-8")
-    return out
-
-
-def check_termination(process):
-    if process.returncode != 0:
-        print(process.communicate()[0].decode("utf-8"))
-        raise RuntimeError({"DFTD4 run has terminated unsuccessfully"})
-
-
-def calc_c6_c12(comb_rule, qm_out, topo, c6s, c8s, r_rels):
-    hartree2kjmol = 2625.499638
-    bohr2ang = 0.52917721067
-    bohr2nm = 0.052917721067
-    new_ljs = []
-
-    r_ref = {1: 1.986, 6: 2.083, 7: 1.641, 8: 1.452, 9: 1.58, 16: 1.5}
-    s8_scale = {1: 0.133, 6: 0.133, 7: 0.683, 8: 0.683, 9: 0.683, 16: 0.5}
-
-    for i, (c6, c8, r_rel) in enumerate(zip(c6s, c8s, r_rels)):
-        elem = qm_out.elements[topo.unique_atomids[i]]
-        c8 *= s8_scale[elem]
-        c10 = 40/49*(c8**2)/c6
-
-        r_vdw = 2*r_ref[elem]*r_rel/bohr2ang
-        r = np.arange(r_vdw*0.5, 20, 0.01)
-        c12 = (c6 + c8/r_vdw**2 + c10/r_vdw**4) * r_vdw**6 / 2
-        lj = c12/r**12 - c6/r**6 - c8/r**8 - c10/r**10
-        weight = 10*(1-lj / min(lj))+1
-        popt, _ = curve_fit(calc_lj, r, lj, absolute_sigma=False, sigma=weight)
-        new_ljs.append(popt)
-
-    new_ljs = np.array(new_ljs)*hartree2kjmol
-    new_c6 = new_ljs[:, 0]*bohr2nm**6
-    new_c12 = new_ljs[:, 1]*bohr2nm**12
-
-    if comb_rule != 1:
-        new_a, new_b = calc_sigma_epsilon(new_c6, new_c12)
-    else:
-        new_a, new_b = new_c6, new_c12
-    return new_a, new_b
-
-
-def calc_lj(r, c6, c12):
-    return c12/r**12 - c6/r**6
-
-
-def set_polar_not_scale_c6(value):
-    if value:
-        not_scale = value.split()
-    else:
-        not_scale = []
-    return not_scale
-
-# def move_polarizability_from_hydrogens(alpha, mol):
-#     new_alpha = np.zeros(mol.n_atoms)
-#     for i, a_id in enumerate(mol.atomids):
-#         if a_id == 1:
-#             new_alpha[mol.neighbors[0][i][0]] += alpha[mol.atoms[i]]
-#         else:
-#             new_alpha[i] += alpha[mol.atoms[i]]
-#     return new_alpha

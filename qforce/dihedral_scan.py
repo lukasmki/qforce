@@ -10,14 +10,15 @@ from ase.io import read
 from scipy.interpolate import interp1d as interpolate
 from numba import jit
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 #
 from colt import Colt
 #
-from .forcefield import ForceField
+from qforce.forcefield.forcefield import ForceField
 from .calculator import QForce
 from .forces import get_dihed, get_dist
+
+matplotlib.use('Agg')
 
 """
 
@@ -72,12 +73,17 @@ batch_run = False :: bool
 
     def __init__(self, fragments, mol, job, all_config):
         self.frag_dir = job.frag_dir
+        self.logger = job.logger
         self.job_name = job.name
         self.mdp_file = f'{job.md_data}/default.mdp'
         self.config = all_config.scan
         self.symmetrize = self._set_symmetrize()
-        self.scan = getattr(self, f'scan_dihed_{self.config.method.lower()}')
+        self._scan = getattr(self, f'scan_dihed_{self.config.method.lower()}')
         self.move_capping_atoms(fragments)
+
+        # generate the terms
+        for frag in fragments:
+            frag.make_fragment_terms(mol)
 
         fragments, all_dih_terms, weights = self.arrange_data(mol, fragments)
         final_energy, params = self.scan_dihedrals(fragments, mol, all_config, all_dih_terms,
@@ -157,25 +163,27 @@ batch_run = False :: bool
             sum_scans += n_scans
 
         if bad_fits:
-            print('WARNING: R-squared < 0.9 for the dihedral fit of the following fragment(s):')
+            msg = 'R-squared < 0.9 for the dihedral fit of the following fragment(s):\n'
             for bad_fit in bad_fits:
-                print(f'         - {bad_fit}')
-            print('         Please check manually to see if you find the accuracy satisfactory.\n')
+                msg += f'         - {bad_fit}\n'
+            msg += '         Please check manually to see if you find the accuracy satisfactory.\n\n'
+            self.logger.warning(msg)
 
     def scan_dihedrals(self, fragments, mol, all_config, all_dih_terms, weights):
         for n_run in range(self.config.n_dihed_scans):
             energy_diffs, md_energies = [], []
             for n_fit, frag in enumerate(fragments, start=1):
-                print(f'Run {n_run+1}/{self.config.n_dihed_scans}, fitting dihedral '
-                      f'{n_fit}/{len(fragments)}: {frag.id}')
+                msg = (f'Run {n_run+1}/{self.config.n_dihed_scans}, fitting dihedral '
+                       f'{n_fit}/{len(fragments)}: {frag.id}')
+                self.logger.info(msg)
 
-                scan_dir = f'{self.frag_dir}/{frag.id}'
+                scan_dir = f'{self.frag_dir}/{frag.id}/mm'
                 make_scan_dir(scan_dir)
 
                 for term in frag.fit_terms:
                     term['angles'] = []
 
-                md_energy = self.scan(all_config, frag, scan_dir, mol, n_run)
+                md_energy = self._scan(all_config, frag, scan_dir, mol, n_run)
                 md_energy -= md_energy.min()
 
                 if frag.central_atoms in self.symmetrize.keys():
@@ -207,7 +215,7 @@ batch_run = False :: bool
                 term_idx = all_dih_terms.index(str(term))
                 term.equ += params[6*term_idx:(6*term_idx)+6]
 
-        print('Done!\n')
+        self.logger.info('Done!')
         final_energy = np.array(md_energies) + np.sum(matrix * params, axis=1)
 
         return final_energy, params
@@ -242,20 +250,20 @@ batch_run = False :: bool
     def scan_dihed_gromacs(self, all_config, frag, scan_dir, mol, n_run):
         md_energies = []
 
-        ff = ForceField(self.job_name, all_config, frag, frag.neighbors,
+        ff = ForceField('gromacs', self.job_name, all_config, frag, frag.neighbors,
                         exclude_all=frag.remove_non_bonded)
 
         for i, coord in enumerate(frag.coords):
             step_dir = f"{scan_dir}/step{i:02d}"
             make_scan_dir(step_dir)
 
-            ff.write_gromacs(step_dir, frag, coord)
+            ff.software.write(step_dir, coord)
             shutil.copy2(self.mdp_file, step_dir)
 
             restraints = self.find_restraints(frag, frag.qm_coords[i], n_run)
-            ff.add_restraints(restraints, step_dir)
+            ff.software.add_restraints(restraints, step_dir)
 
-            run_gromacs(step_dir, all_config.scan.gromacs_exec, ff.polar_title)
+            run_gromacs(step_dir, all_config.scan.gromacs_exec)
             md_energy = read_gromacs_energies(step_dir)
             md_energies.append(md_energy)
 
@@ -280,7 +288,7 @@ batch_run = False :: bool
             #     restraints.append([term.atomids, phi])
             if (all([term.atomids[i] == frag.scanned_atomids[i] for i in range(3)])
                 # or not all([idx in term.atomids for idx in frag.scanned_atomids[1:3]])):
-                    or n_run == 0):
+                or n_run == 0):
                 restraints.append([term.atomids, phi0])
 
         return restraints
@@ -419,10 +427,10 @@ def make_scan_dir(scan_name):
     os.makedirs(scan_name)
 
 
-def run_gromacs(directory, gromacs_exec, polar_title):
+def run_gromacs(directory, gromacs_exec):
     attempt, returncode = 0, 1
     grompp = subprocess.Popen([gromacs_exec, 'grompp', '-f', 'default.mdp', '-p',
-                               f'gas{polar_title}.top', '-c', f'gas{polar_title}.gro', '-o',
+                               f'gas.top', '-c', f'gas.gro', '-o',
                                'em.tpr', '-po', 'em.mdp', '-maxwarn', '10'],
                               cwd=directory, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT)

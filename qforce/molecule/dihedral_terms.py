@@ -1,9 +1,11 @@
-from itertools import product
+from itertools import product, combinations
 import numpy as np
 #
 from .baseterms import TermABC, TermFactory
 from ..forces import get_dihed, get_angle
-from ..forces import calc_imp_diheds, calc_rb_diheds, calc_inversion  # , calc_periodic_dihed
+from ..forces import (calc_harmonic_diheds, calc_rb_diheds, calc_inversion, calc_cos_cube_diheds, calc_pitorsion_diheds,
+                      calc_periodic_dihed)
+from ..forces import lsq_rb_diheds
 
 
 class DihedralBaseTerm(TermABC):
@@ -36,7 +38,7 @@ class DihedralBaseTerm(TermABC):
         elif 150 <= phi:
             ang = 180
 
-        return f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}~{ang}"
+        return f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"  #-{ang}
 
     @staticmethod
     def remove_linear_angles(coords, a1s, a2, a3, a4s):
@@ -60,72 +62,220 @@ class DihedralBaseTerm(TermABC):
         return cls(atomids, phi, d_type)
 
 
-class RigidDihedralTerm(DihedralBaseTerm):
+class PeriodicDihedralTerm(DihedralBaseTerm):
+    name = 'PeriodicDihedralTerm'
 
-    name = 'RigidDihedralTerm'
+    @classmethod
+    def get_term(cls, topo, atomids, multiplicity, phi0, d_type):
+        return cls(atomids, [multiplicity, phi0], d_type)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l = self.atomids
+        return [self.torsionname(i, j, k, l)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        t1 = self.constants()[0]
+        t1 = dct.get(t1, None)
+        if t1 is not None:
+            self.equ[1] = t1
 
     def _calc_forces(self, crd, force, fconst):
-        return calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
+        return calc_periodic_dihed(crd, self.atomids, self.equ, fconst, force)
+
+    def write_forcefield(self, software, writer):
+        software.write_periodic_dihedral_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_periodic_dihedral_header(writer)
 
 
-class ImproperDihedralTerm(DihedralBaseTerm):
-
-    name = 'ImproperDihedralTerm'
-
-    def _calc_forces(self, crd, force, fconst):
-        return calc_imp_diheds(crd, self.atomids, self.equ, fconst, force)
+class HarmonicDihedralTerm(DihedralBaseTerm):
+    name = 'HarmonicDihedralTerm'
 
     @classmethod
     def get_term(cls, topo, atomids, phi, d_type):
         phi = DihedralBaseTerm.check_angle(phi)
         return cls(atomids, phi, d_type)
 
+    def _calc_forces(self, crd, force, fconst):
+        return calc_harmonic_diheds(crd, self.atomids, self.equ, fconst, force)
+        # return calc_periodic_dihed(crd, self.atomids, self.equ, fconst, force)
 
-class FlexibleDihedralTerm(DihedralBaseTerm):
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l = self.atomids
+        return [self.torsionname(i, j, k, l)]
 
-    name = 'FlexibleDihedralTerm'
+    def update_constants(self, dct):
+        """update constants for the class"""
+        t1 = self.constants()[0]
+        t1 = dct.get(t1, None)
+        if t1 is not None:
+            self.equ = t1
+
+    def write_forcefield(self, software, writer):
+        software.write_harmonic_dihedral_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_harmonic_dihedral_header(writer)
+
+
+class RBDihedralTerm(DihedralBaseTerm):
+    name = 'RBDihedralTerm'
+    idx_buffer = 6
 
     def _calc_forces(self, crd, force, fconst):
-        return calc_rb_diheds(crd, self.atomids, self.equ, fconst, force)
+        """fconst is not used for this term"""
+        return calc_rb_diheds(crd, self.atomids, self.equ, force)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l = self.atomids
+        return [self.torsionname(i, j, k, l)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        # no clue how to update rbdihedrals
+
+    def do_fitting(self, crd, energies, forces):
+        """compute fitting contributions"""
+        en = lsq_rb_diheds(crd, self.atomids, forces[self.idx:self.idx+self.idx_buffer])
+        for i, ele in enumerate(en):
+            energies[self.idx + i] = ele
+
+    def set_fitparameters(self, parameters):
+        """set the parameters after fitting"""
+        self.equ = np.array([val for val in parameters[self.idx:self.idx+self.idx_buffer]], dtype=float)
 
     @classmethod
     def get_term(cls, topo, atoms, d_type):
         return cls(atoms, np.zeros(6), d_type)
 
+    def write_forcefield(self, software, writer):
+        software.write_rb_dihed_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_rb_dihed_header(writer)
+
 
 class InversionDihedralTerm(DihedralBaseTerm):
-
     name = 'InversionDihedralTerm'
 
     def _calc_forces(self, crd, force, fconst):
         return calc_inversion(crd, self.atomids, self.equ, fconst, force)
 
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l = self.atomids
+        return [self.torsionname(i, j, k, l)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        t1 = self.constants()[0]
+        t1 = dct.get(t1, None)
+        if t1 is not None:
+            self.equ = t1
+
     @classmethod
     def get_term(cls, topo, atomids, phi, d_type):
         return cls(atomids, phi, d_type)
 
+    def write_forcefield(self, software, writer):
+        software.write_inversion_dihedral_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_inversion_dihedral_header(writer)
+
+
+class CosCubeDihedralTerm(DihedralBaseTerm):
+    name = 'CosCubeDihedralTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_cos_cube_diheds(crd, self.atomids, fconst, force)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l = self.atomids
+        return [self.torsionname(i, j, k, l)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        pass
+
+    @classmethod
+    def get_term(cls, topo, atomids, d_type):
+        return cls(atomids, None, d_type)
+
+    def write_forcefield(self, software, writer):
+        software.write_cos_cube_dihedral_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_cos_cube_dihedral_header(writer)
+
+
+class PiTorsionDihedralTerm(DihedralBaseTerm):
+    name = 'PiTorsionDihedralTerm'
+
+    def _calc_forces(self, crd, force, fconst):
+        return calc_pitorsion_diheds(crd, self.atomids, self.equ, fconst, force)
+
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        i, j, k, l = self.atomids
+        return [self.torsionname(i, j, k, l)]
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        t1 = self.constants()[0]
+        t1 = dct.get(t1, None)
+        if t1 is not None:
+            self.equ = t1
+
+    @classmethod
+    def get_term(cls, topo, atomids, phi, d_type):
+        phi = DihedralBaseTerm.check_angle(phi)
+        return cls(atomids, phi, d_type)
+
+    def write_forcefield(self, software, writer):
+        software.write_pitorsion_dihedral_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_pitorsion_dihedral_header(writer)
+
 
 class DihedralTerms(TermFactory):
-
     name = 'DihedralTerms'
 
     _term_types = {
-        'rigid': RigidDihedralTerm,
-        'improper': ImproperDihedralTerm,
-        'flexible': FlexibleDihedralTerm,
+        'rigid': PeriodicDihedralTerm,
+        'improper': HarmonicDihedralTerm,
+
+        # 'flexible': { # PeriodicDihedralTerm, # CosCubeDihedralTerm,# ,RBDihedralTerm
+        #     'periodic': PeriodicDihedralTerm,
+        #     'cos_cube': CosCubeDihedralTerm,
+        # },
+
+        'flexible': PeriodicDihedralTerm,  # CosCubeDihedralTerm,# ,RBDihedralTerm
+        'cos_cube': CosCubeDihedralTerm,
+
         'inversion': InversionDihedralTerm,
+        'pitorsion': PiTorsionDihedralTerm,
     }
 
     _always_on = []
     _default_off = []
 
     @classmethod
-    def get_terms(cls, topo, non_bonded):
-        terms = cls.get_terms_container()
+    def _get_terms(cls, topo, non_bonded, termtypes):
+        terms = cls.get_terms_container(termtypes)
 
         # helper functions to improve readability
         def add_term(name, topo, atoms, *args):
-            terms[name].append(cls._term_types[name].get_term(topo, atoms, *args))
+            term = termtypes[name].get_term(topo, atoms, *args)
+            if term is not None:
+                terms[name].append(term)
 
         def get_dtype(topo, *args):
             return DihedralBaseTerm.get_type(topo, *args)
@@ -152,62 +302,93 @@ class DihedralTerms(TermFactory):
                         any([topo.node(a)['n_ring'] > 1 for a in a4s]))
                     or (central['in_ring'] and check_if_in_a_fully_planar_ring(topo, a2, a3))
                     or topo.all_rigid):
-                # rigid
+
                 for atoms in atoms_comb:
                     d_type = get_dtype(topo, *atoms)
-                    add_term('rigid', topo, atoms, d_type)
+                    # phi = get_dihed(topo.coords[atoms])[0]
+                    # add_term('rigid', topo, atoms, phi, d_type)
+                    add_term('rigid', topo, atoms, 2., np.pi, d_type+'_mult2')
 
             elif central['in_ring']:
                 atoms_in_ring = [a for a in atoms_comb if any(set(a).issubset(set(r))
                                  for r in topo.rings)]
 
                 for atoms in atoms_in_ring:
-                    phi = get_dihed(topo.coords[atoms])[0]
+                    # phi = get_dihed(topo.coords[atoms])[0]
                     d_type = get_dtype(topo, *atoms)
 
-                    if abs(phi) < 0.43625:  # check planarity < 25 degrees
-                        add_term('rigid', topo, atoms, d_type)
-                    else:
-                        add_term('inversion', topo, atoms, phi, d_type)
+                    add_term('rigid', topo, atoms, 2., np.pi, d_type+'_mult2')
+
+                    # if abs(phi) < 0.43625:  # check planarity < 25 degrees
+                    #     add_term('rigid', topo, atoms, 2., np.pi, d_type+'_mult2')
+                    # else:
+                    #     add_term('inversion', topo, atoms, phi, d_type)
 
             else:
-                atoms = find_flexible_atoms(topo, a1s, a2, a3, a4s)
-                for dih in atoms:
-                    atypes = [topo.types[dih[0]], topo.types[dih[3]]]
-                    if central['vers'].startswith(topo.types[a3]):
-                        atypes = atypes[::-1]
-                    d_type = f"{central['vers']}_{atypes[0]}-{atypes[1]}"
-                    add_term('flexible', topo, dih, d_type)
+                for atoms in atoms_comb:
+                    d_type = get_dtype(topo, *atoms)
+                    add_term('cos_cube', topo, atoms, d_type)
+                    add_term('flexible', topo, atoms, 4, np.pi, d_type+'_mult4')
+                    add_term('flexible', topo, atoms, 3, 0, d_type+'_mult3')
+                    add_term('flexible', topo, atoms, 2, np.pi, d_type+'_mult2')
+                    add_term('flexible', topo, atoms, 1, 0, d_type+'_mult1')
 
         # improper dihedrals
+        improper_centers = []
         for i in range(topo.n_atoms):
             bonds = list(topo.graph.neighbors(i))
             if len(bonds) != 3:
                 continue
-            atoms = [i, -1, -1, -1]
-            n_bond = [len(list(topo.graph.neighbors(b))) for b in bonds]
-            non_ring = [a for a in bonds if not topo.edge(i, a)['in_ring']]
-
-            if len(non_ring) == 1:
-                atoms[3] = non_ring[0]
+            if len(bonds) >= 3:
+                triplets = (combinations(bonds, 3))
             else:
-                atoms[3] = bonds[n_bond.index(min(n_bond))]
-
-            for b in bonds:
-                if b not in atoms:
-                    atoms[atoms.index(-1)] = b
-
-            phi = get_dihed(topo.coords[atoms])[0]
-            # Only add improper dihedrals if there is no stiff dihedral
-            # on the central improper atom and one of the neighbors
-            bonds = [sorted([b, i]) for b in bonds]
-            if any(b == list(term.atomids[1:3]) for term in terms['rigid'] for b in bonds):
                 continue
-            imp_type = f"ki_{topo.types[i]}"
-            if abs(phi) < 0.43625:  # check planarity < 25 degrees
-                add_term('improper', topo, atoms, phi, imp_type)
-            else:
-                add_term('inversion', topo, atoms, phi, imp_type)
+
+            for bonds in triplets:
+
+                atoms = [i, -1, -1, -1]
+                n_bond = [len(list(topo.graph.neighbors(b))) for b in bonds]
+                non_ring = [a for a in bonds if not topo.edge(i, a)['in_ring']]
+
+                if len(non_ring) == 1:
+                    atoms[3] = non_ring[0]
+                else:
+                    atoms[3] = bonds[n_bond.index(min(n_bond))]
+
+                for b in bonds:
+                    if b not in atoms:
+                        atoms[atoms.index(-1)] = b
+
+                phi = get_dihed(topo.coords[atoms])[0]
+                # Only add improper dihedrals if there is no stiff dihedral
+                # on the central improper atom and one of the neighbors
+                bonds = [sorted([b, i]) for b in bonds]
+                # if any(b == list(term.atomids[1:3]) for term in terms['rigid'] for b in bonds):
+                #     continue
+                imp_type = f"ki_{topo.types[i]}"
+                if abs(phi) < 0.43625:  # check planarity < 25 degrees
+                    improper_centers.append(i)
+                    add_term('improper', topo,  [atoms[0], atoms[1], atoms[2], atoms[3]], phi, imp_type)
+                    add_term('improper', topo, [atoms[0], atoms[1], atoms[3], atoms[2]], phi, imp_type)
+                    add_term('improper', topo, [atoms[0], atoms[2], atoms[3], atoms[1]], phi, imp_type)
+                # else:
+                #     add_term('inversion', topo,  [atoms[0], atoms[1], atoms[2], atoms[3]], phi, imp_type)
+                #     add_term('inversion', topo, [atoms[0], atoms[1], atoms[3], atoms[2]], phi, imp_type)
+                #     add_term('inversion', topo, [atoms[0], atoms[2], atoms[1], atoms[3]], phi, imp_type)
+                #     add_term('inversion', topo, [atoms[0], atoms[2], atoms[3], atoms[1]], phi, imp_type)
+                #     add_term('inversion', topo, [atoms[0], atoms[3], atoms[1], atoms[2]], phi, imp_type)
+                #     add_term('inversion', topo, [atoms[0], atoms[3], atoms[2], atoms[1]], phi, imp_type)
+
+        for a1, a2 in combinations(improper_centers, 2):
+            if a2 in topo.neighbors[0][a1]:
+                a1_1, a1_2 = [n for n in topo.neighbors[0][a1] if n != a2]
+                a2_1, a2_2 = [n for n in topo.neighbors[0][a2] if n != a1]
+
+                pt_type = sorted([topo.types[a1], topo.types[2]])
+                pt_type = f'{pt_type[0]}_{pt_type[1]}'
+                add_term('pitorsion', topo, [a1, a1_1, a1_2, a2, a2_1, a2_2], 0, pt_type)
+
+
         return terms
 
 
@@ -228,54 +409,3 @@ def check_if_in_a_fully_planar_ring(topo, a2, a3):
     else:
         all_planar = False
     return all_planar
-
-
-def find_flexible_atoms(topo, a1s, a2, a3, a4s):
-    def pick_end_atom(atom_list):
-        n_neighbors = topo.n_neighbors[atom_list]
-        choices = atom_list[n_neighbors > 1]
-        if len(choices) == 0:
-            choices = atom_list
-        # if len(choices) > 1:
-        #     heaviest_elem = np.amax(topo.elements[choices])
-        #     choices = choices[topo.elements[choices] == heaviest_elem]
-        return choices
-
-    a1s = pick_end_atom(a1s)
-    a4s = pick_end_atom(a4s)
-
-    priority = [[] for _ in range(6)]
-
-    for a1, a4 in product(a1s, a4s):
-        phi = np.degrees(abs(get_dihed(topo.coords[[a1, a2, a3, a4]])[0]))
-        if phi > 155:
-            priority[0].append([a1, a4])
-        elif phi < 25:
-            priority[1].append([a1, a4])
-        elif topo.edge(a1, a2)['in_ring'] and topo.edge(a3, a4)['in_ring']:
-            priority[5].append([a1, a4])
-        elif topo.edge(a1, a2)['in_ring'] or topo.edge(a3, a4)['in_ring']:
-            priority[4].append([a1, a4])
-        elif 55 < phi < 65 or 85 < phi < 95:
-            priority[2].append([a1, a4])
-        else:
-            priority[3].append([a1, a4])
-
-    ordered = [p for prio in priority for p in prio]
-    a1_select, a4_select = ordered[0]
-    atoms = [[a1_select, a2, a3, a4_select]]
-
-    for a1, a4 in ordered[1:]:
-        if ((len(topo.neighbors[0][a1]) > 1 or len(topo.neighbors[0][a2]) == 2) and
-                (len(topo.neighbors[0][a4]) > 1 or len(topo.neighbors[0][a3]) == 2)):
-            atoms.append([a1, a2, a3, a4])
-
-    # add a second dihedral term if minimum is non-planar
-    # if priority[0] == [] and priority[1] == []:
-    #     phi0 = np.degrees(get_dihed(topo.coords[[a1_select, a2, a3, a4_select]])[0])
-    #     for a1, a4 in product(a1s, a4s):
-    #         phi = np.degrees(get_dihed(topo.coords[[a1, a2, a3, a4]])[0])
-    #         if 100 < (phi0-phi) % 360 < 140 or 220 < (phi0-phi) % 360 < 260:
-    #             atoms.append([a1, a2, a3, a4])
-    #             break
-    return atoms

@@ -13,8 +13,16 @@ class NonBondedTerms(TermBase):
     def _calc_forces(self, crd, force, fconst):
         return calc_pairs(crd, self.atomids, self.equ, force)
 
+    def constants(self):
+        """return constants for the class should return a list of names of the constants used in the class"""
+        return []
+
+    def update_constants(self, dct):
+        """update constants for the class"""
+        pass
+
     @classmethod
-    def get_terms(cls, topo, non_bonded):
+    def _get_terms(cls, topo, non_bonded):
         """get terms"""
 
         non_bonded_terms = cls.get_terms_container()
@@ -42,3 +50,9 @@ class NonBondedTerms(TermBase):
 
                     non_bonded_terms.append(cls([i, j], np.array(param), term_type))
         return non_bonded_terms
+
+    def write_forcefield(self, software, writer):
+        software.write_nonbonded_term(self, writer)
+
+    def write_ff_header(self, software, writer):
+        return software.write_nonbonded_header(writer)

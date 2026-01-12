@@ -1,14 +1,14 @@
 import os
 import numpy as np
 from ase.units import Hartree, mol, kJ
+
 #
 from .qm_base import WriteABC, ReadABC, QMInterface, Calculator
 from ..elements import ATOM_SYM
 
 
 class Gaussian(QMInterface):
-
-    name = 'gaussian'
+    name = "gaussian"
     has_torsiondrive = True
 
     _user_input = """
@@ -29,19 +29,18 @@ class Gaussian(QMInterface):
 
     """
 
-    _method = ['method', 'dispersion', 'basis', 'solvent_method']
+    _method = ["method", "dispersion", "basis", "solvent_method"]
 
     def __init__(self, config):
-        if config.dispersion.lower() == 'none':
-            config.dispersion = ''
+        if config.dispersion.lower() == "none":
+            config.dispersion = ""
         if config.solvent_method is None:
-            config.solvent_method = ''
+            config.solvent_method = ""
         super().__init__(config, ReadGaussian(config), WriteGaussian(config))
 
 
 class GaussianCalculator(Calculator):
-
-    name = 'gaussian'
+    name = "gaussian"
 
     _user_input = """
     # name of the gaussian executable
@@ -56,28 +55,29 @@ class GaussianCalculator(Calculator):
 
     @classmethod
     def from_config(cls, config):
-        return cls(config['gauexe'], config['formchk'])
+        return cls(config["gauexe"], config["formchk"])
 
     def _commands(self, filename, basename, ncores):
-        return [f'{self.gauexe} {filename}', f'{self.formchk} {basename}.chk']
+        return [f"{self.gauexe} {filename}", f"{self.formchk} {basename}.chk"]
 
 
 class ReadGaussian(ReadABC):
-
-    hessian_files = {'out_file': ['${base}.out', '${base}.log'],
-                     'fchk_file': ['${base}.fchk', '${base}.fck']}
-    opt_files = {'out_file': ['${base}.out', '${base}.log']}
-    sp_files = {'out_file': ['${base}.out', '${base}.log']}
-    sp_ec_files = {'out_file': ['${base}.out', '${base}.log']}
-    charge_files = {'out_file': ['${base}.out', '${base}.log']}
-    scan_files = {'file_name': ['${base}.out', '${base}.log']}
-    scan_torsiondrive_files = {'xyz': ['scan.xyz']}
+    hessian_files = {
+        "out_file": ["${base}.out", "${base}.log"],
+        "fchk_file": ["${base}.fchk", "${base}.fck"],
+    }
+    opt_files = {"out_file": ["${base}.out", "${base}.log"]}
+    sp_files = {"out_file": ["${base}.out", "${base}.log"]}
+    sp_ec_files = {"out_file": ["${base}.out", "${base}.log"]}
+    charge_files = {"out_file": ["${base}.out", "${base}.log"]}
+    scan_files = {"file_name": ["${base}.out", "${base}.log"]}
+    scan_torsiondrive_files = {"xyz": ["scan.xyz"]}
 
     def opt(self, config, out_file):
         """read the log file"""
-        with open(out_file, "r", encoding='utf-8') as file:
+        with open(out_file, "r", encoding="utf-8") as file:
             for line in file:
-                if 'Input orientation:' in line:
+                if "Input orientation:" in line:
                     for _ in range(4):
                         next(file)
                     coords = self._get_input_orientation(file)
@@ -85,20 +85,20 @@ class ReadGaussian(ReadABC):
         return [coords]
 
     def sp(self, config, out_file):
-        with open(out_file, "r", encoding='utf-8') as file:
+        with open(out_file, "r", encoding="utf-8") as file:
             for line in file:
                 if "SCF Done:" in line:
                     energy = round(float(line.split()[4]), 8)
                 elif "EUMP2" in line:
                     # if mp2, read mp2 energy
-                    energy = round(float(line.split()[-1].replace('D', 'E')), 8)
+                    energy = round(float(line.split()[-1].replace("D", "E")), 8)
         return energy * Hartree * mol / kJ
 
     @staticmethod
     def _get_input_orientation(file):
         coords = []
         for line in file:
-            if '---------------------------' in line:
+            if "---------------------------" in line:
                 return coords
             x, y, z = line.split()[3:]
             coords.append([float(x), float(y), float(z)])
@@ -107,25 +107,39 @@ class ReadGaussian(ReadABC):
     def hessian(self, config, out_file, fchk_file):
         b_orders, point_charges = [], []
 
-        n_atoms, charge, multiplicity, elements, coords, hessian = self._read_fchk_file(fchk_file)
+        n_atoms, charge, multiplicity, elements, coords, hessian = self._read_fchk_file(
+            fchk_file
+        )
 
         charge_method = self.config.charge_method
 
-        with open(out_file, "r", encoding='utf-8') as file:
+        with open(out_file, "r", encoding="utf-8") as file:
             for line in file:
-                if "Hirshfeld charges, spin densities" in line and charge_method == "cm5":
+                if (
+                    "Hirshfeld charges, spin densities" in line
+                    and charge_method == "cm5"
+                ):
                     point_charges = self._read_cm5_charges(file, n_atoms)
                 elif " ESP charges:" in line and charge_method == "esp":
                     point_charges = self._read_esp_charges(file, n_atoms)
                 elif "N A T U R A L   B O N D   O R B I T A L" in line:
                     b_orders = self._read_bond_order_from_nbo_analysis(file, n_atoms)
 
-        return n_atoms, charge, multiplicity, elements, coords, hessian, b_orders, point_charges
+        return (
+            n_atoms,
+            charge,
+            multiplicity,
+            elements,
+            coords,
+            hessian,
+            b_orders,
+            point_charges,
+        )
 
     def charges(self, config, out_file):
         """read charge from file"""
         point_charges = {}
-        with open(out_file, "r", encoding='utf-8') as file:
+        with open(out_file, "r", encoding="utf-8") as file:
             for line in file:
                 if line.startswith(" NAtoms= "):
                     n_atoms = int(line.split()[1])
@@ -133,9 +147,9 @@ class ReadGaussian(ReadABC):
 
             for line in file:
                 if "Hirshfeld charges, spin densities" in line:
-                    point_charges['cm5'] = self._read_cm5_charges(file, n_atoms)
+                    point_charges["cm5"] = self._read_cm5_charges(file, n_atoms)
                 elif " ESP charges:" in line:
-                    point_charges['esp'] = self._read_esp_charges(file, n_atoms)
+                    point_charges["esp"] = self._read_esp_charges(file, n_atoms)
                 # elif "N A T U R A L   B O N D   O R B I T A L" in line:
                 #    b_orders = self._read_bond_order_from_nbo_analysis(file, n_atoms)
         if len(point_charges) == 0:
@@ -144,7 +158,7 @@ class ReadGaussian(ReadABC):
 
     def scan(self, config, file_name):
         n_atoms, angles, energies, coords, point_charges = None, [], [], [], {}
-        with open(file_name, "r", encoding='utf-8') as file:
+        with open(file_name, "r", encoding="utf-8") as file:
             for line in file:
                 if line.startswith(" NAtoms= "):
                     n_atoms = int(line.split()[1])
@@ -155,7 +169,7 @@ class ReadGaussian(ReadABC):
                         line = line.split()
                         if line == []:
                             break
-                        elif line[0] == 'D' and line[5] == 'S':
+                        elif line[0] == "D" and line[5] == "S":
                             step_size = float(line[7])
 
                 elif "  Scan  " in line and "!" in line:
@@ -175,25 +189,27 @@ class ReadGaussian(ReadABC):
 
                 elif "EUMP2" in line:
                     # if mp2, read mp2 energy
-                    energy = round(float(line.split()[-1].replace('D', 'E')), 8)
+                    energy = round(float(line.split()[-1].replace("D", "E")), 8)
 
                 # Get optimized energies, coords for each scan angle
-                elif "-- Stationary" in line or '-- Number of steps exceeded' in line:
+                elif "-- Stationary" in line or "-- Number of steps exceeded" in line:
                     angle = init_angle + step * step_size
                     angles.append(angle)
                     energies.append(energy)
                     coords.append(coord)
                     step += 1
 
-                    if '-- Number of steps exceeded' in line:
-                        print('WARNING: An optimization step is unconverged in the file:\n'
-                              f'         - {file_name}\n'
-                              '           Double check to make sure it is fine.\n')
+                    if "-- Number of steps exceeded" in line:
+                        print(
+                            "WARNING: An optimization step is unconverged in the file:\n"
+                            f"         - {file_name}\n"
+                            "           Double check to make sure it is fine.\n"
+                        )
 
                 elif "Hirshfeld charges, spin densities" in line:
-                    point_charges['cm5'] = self._read_cm5_charges(file, n_atoms)
+                    point_charges["cm5"] = self._read_cm5_charges(file, n_atoms)
                 elif " ESP charges:" in line:
-                    point_charges['esp'] = self._read_esp_charges(file, n_atoms)
+                    point_charges["esp"] = self._read_esp_charges(file, n_atoms)
 
         energies = np.array(energies) * Hartree * mol / kJ
         return n_atoms, coords, angles, energies, point_charges
@@ -218,7 +234,6 @@ class ReadGaussian(ReadABC):
 
 
 class WriteGaussian(WriteABC):
-
     def opt(self, file, job_name, settings, coords, atnums):
         self._write_opt_job_setting(job_name, settings, file)
         self._write_coords(atnums, coords, file)
@@ -241,36 +256,61 @@ class WriteGaussian(WriteABC):
 
     @staticmethod
     def _write_bndix(file):
-        file.write('\n$nbo BNDIDX $end\n\n')
+        file.write("\n$nbo BNDIDX $end\n\n")
 
-    def scan(self, file, job_name, settings, coords, atnums, scanned_atoms, start_angle, charge,
-             multiplicity):
+    def scan(
+        self,
+        file,
+        job_name,
+        settings,
+        coords,
+        atnums,
+        scanned_atoms,
+        start_angle,
+        charge,
+        multiplicity,
+    ):
         self._write_scan_job_setting(job_name, settings, file, charge, multiplicity)
         self._write_coords(atnums, coords, file)
         self._write_scanned_atoms(file, scanned_atoms, settings.scan_step_size)
 
-    def scan_torsiondrive(self, file, job_name, settings, coords, atnums,
-                          scanned_atoms, start_angle, charge, multiplicity):
-
+    def scan_torsiondrive(
+        self,
+        file,
+        job_name,
+        settings,
+        coords,
+        atnums,
+        scanned_atoms,
+        start_angle,
+        charge,
+        multiplicity,
+    ):
         base, _ = os.path.split(file.name)
-        self._scan_torsiondrive_helper(file, job_name, settings, scanned_atoms, 'gaussian')
+        self._scan_torsiondrive_helper(
+            file, job_name, settings, scanned_atoms, "gaussian"
+        )
 
-        with open(f'{base}/{job_name}_input.xyz', 'w') as fh:
-            self._write_scan_torsiondrive_job_settings(job_name, settings, fh, charge, multiplicity)
+        with open(f"{base}/{job_name}_input.xyz", "w") as fh:
+            self._write_scan_torsiondrive_job_settings(
+                job_name, settings, fh, charge, multiplicity
+            )
             self._write_coords(atnums, coords, fh)
             fh.write("\n\n\n")
 
     @staticmethod
     def _write_scanned_atoms(file, scanned_atoms, step_size):
         a1, a2, a3, a4 = scanned_atoms
-        n_steps = int(np.ceil(360/step_size))-1
+        n_steps = int(np.ceil(360 / step_size)) - 1
         file.write(f"\nD {a1} {a2} {a3} {a4} S {n_steps} {step_size:.2f}\n\n")
 
     @staticmethod
     def _write_coords(atnums, coords, file):
         for atnum, coord in zip(atnums, coords):
             elem = ATOM_SYM[atnum]
-            file.write(f'{elem :>3s} {coord[0]:>12.6f} {coord[1]:>12.6f} {coord[2]:>12.6f}\n')
+            file.write(
+                f"{elem:>3s} {coord[0]:>12.6f} {coord[1]:>12.6f} {coord[2]:>12.6f}\n"
+            )
 
     def _write_sp_job_setting(self, job_name, settings, file):
         file.write(f"%nprocshared={settings.n_proc}\n")
@@ -312,7 +352,9 @@ class WriteGaussian(WriteABC):
         file.write(f"{job_name}\n\n")
         file.write(f"{settings.charge} {settings.multiplicity}\n")
 
-    def _write_scan_torsiondrive_job_settings(self, job_name, settings, file, charge, multiplicity):
+    def _write_scan_torsiondrive_job_settings(
+        self, job_name, settings, file, charge, multiplicity
+    ):
         file.write(f"%nprocshared={settings.n_proc}\n")
         file.write(f"%mem={settings.memory}MB\n")
         file.write(f"%chk={job_name}.chk\n")
@@ -333,7 +375,7 @@ class WriteGaussian(WriteABC):
 
     @staticmethod
     def write_method(file, config):
-        if config.method.strip().upper() == 'MP2':
+        if config.method.strip().upper() == "MP2":
             # no dispersion correction for mp2
             file.write(f" {config.method} {config.basis} density=current nosym ")
         else:

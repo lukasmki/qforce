@@ -2,14 +2,17 @@ import os
 from shutil import copy2 as copy
 import numpy as np
 from itertools import tee
+
 #
 from .helper import coords_ids_iter, write_xyz
 from .creator import CalculationStorage, CustomStructureCreator
-from .generalcreators import EnergyCalculationIterCreator, GradientCalculationIterCreator
+from .generalcreators import (
+    EnergyCalculationIterCreator,
+    GradientCalculationIterCreator,
+)
 
 
 class XTBMolecularDynamics(CustomStructureCreator):
-
     _user_input = """
     weight = 1 :: float
     # What to compute:
@@ -36,16 +39,16 @@ class XTBMolecularDynamics(CustomStructureCreator):
         super().__init__(weight, folder=folder)
         self.compute = compute
 
-        self.n_total_fit = config['n_fit']
-        self.n_total_valid = config['n_valid']
+        self.n_total_fit = config["n_fit"]
+        self.n_total_valid = config["n_valid"]
         self.n_traj = len(structures)
-        self.n_fit_dist = self.distribute_sim_count(config['n_fit'])
-        self.n_valid_dist = self.distribute_sim_count(config['n_valid'])
+        self.n_fit_dist = self.distribute_sim_count(config["n_fit"])
+        self.n_valid_dist = self.distribute_sim_count(config["n_valid"])
         self.total_frame_dist = self.n_fit_dist + self.n_valid_dist
-        self.time_dist = config['dump'] * self.total_frame_dist / 1e3
+        self.time_dist = config["dump"] * self.total_frame_dist / 1e3
 
         self.xtbinput = {}
-        for item in ['temp', 'dump', 'step', 'shake']:
+        for item in ["temp", "dump", "step", "shake"]:
             self.xtbinput[item] = config[item]
 
         self._calcs = []
@@ -54,9 +57,9 @@ class XTBMolecularDynamics(CustomStructureCreator):
 
     @classmethod
     def from_config(cls, config, folder, structures):
-        if config['compute'] == 'none':
+        if config["compute"] == "none":
             return None
-        return cls(folder, structures, config['weight'], config['compute'], config)
+        return cls(folder, structures, config["weight"], config["compute"], config)
 
     def setup_pre(self, qm):
         """setup md calculation"""
@@ -66,22 +69,23 @@ class XTBMolecularDynamics(CustomStructureCreator):
 
         calcs = []
         for i, (coords, ids) in enumerate(self._init_structs):
-            folder = self.folder / f'{i}_md'
+            folder = self.folder / f"{i}_md"
             os.makedirs(folder, exist_ok=True)
-            calc = qm.Calculation('xtb.inp',
-                                  {'traj': ['xtb.trj']},
-                                  folder=folder,
-                                  software='xtb')
+            calc = qm.Calculation(
+                "xtb.inp", {"traj": ["xtb.trj"]}, folder=folder, software="xtb"
+            )
 
-            write_xyz(folder / 'xtb.xyz', ids, coords, comment=f"Structure {i}")
-            with open(folder / 'md.inp', 'w') as fh:
+            write_xyz(folder / "xtb.xyz", ids, coords, comment=f"Structure {i}")
+            with open(folder / "md.inp", "w") as fh:
                 fh.write(mdinput)
-                fh.write(f'time = {self.time_dist[i]}\n')
-                fh.write('$end\n')
+                fh.write(f"time = {self.time_dist[i]}\n")
+                fh.write("$end\n")
 
-            with open(folder / 'xtb.inp', 'w') as fh:
-                fh.write(f'xtb xtb.xyz --input md.inp --md --chrg {qm.config.charge} ' 
-                         f'--uhf {qm.config.multiplicity - 1}  --ceasefiles > md.log ')
+            with open(folder / "xtb.inp", "w") as fh:
+                fh.write(
+                    f"xtb xtb.xyz --input md.inp --md --chrg {qm.config.charge} "
+                    f"--uhf {qm.config.multiplicity - 1}  --ceasefiles > md.log "
+                )
 
             calcs.append(calc)
         #
@@ -94,36 +98,38 @@ class XTBMolecularDynamics(CustomStructureCreator):
     def parse_pre(self, qm):
         results = []
         for calc in self._mds.calculations:
-            traj = calc.check()['traj']
-            result = calc.folder / 'mdresult.xyz'
+            traj = calc.check()["traj"]
+            result = calc.folder / "mdresult.xyz"
             copy(traj, result)
-            results.append({'file': result})
+            results.append({"file": result})
         self._mds.results = results
 
     def setup_main(self, qm):
         # setup
         parent = self.folder
-        if self.compute == 'en':
+        if self.compute == "en":
             ComputeCls = EnergyCalculationIterCreator
-        elif self.compute == 'grad':
+        elif self.compute == "grad":
             ComputeCls = GradientCalculationIterCreator
         else:
             raise ValueError("do not know compute method!")
         # currently only one result there
 
         for i, mdrun in enumerate(self._mds.results):
-            filename = mdrun['file']
+            filename = mdrun["file"]
 
-            data = coords_ids_iter(filename, f':{self.total_frame_dist[i]}')
+            data = coords_ids_iter(filename, f":{self.total_frame_dist[i]}")
 
             data_copy, data = tee(data)
             n_items = len(list(data_copy))
 
             if n_items != self.total_frame_dist[i]:
-                raise ValueError('The xTB-MD frame count is wrong for the following folder. '
-                                 f'Check simulation corresponding to:\n{filename}')
+                raise ValueError(
+                    "The xTB-MD frame count is wrong for the following folder. "
+                    f"Check simulation corresponding to:\n{filename}"
+                )
 
-            folder = parent / f'{i}_{self.compute}_structs'
+            folder = parent / f"{i}_{self.compute}_structs"
             self._calcs.append(ComputeCls(folder, self.weight, data))
 
         # actually setup the calculations
@@ -141,39 +147,39 @@ class XTBMolecularDynamics(CustomStructureCreator):
         for calc in self._calcs:
             calc.parse_main(qm)
 
-    def enouts(self, select='all'):
+    def enouts(self, select="all"):
         res = []
         start, end = self.do_selection(select)
         for i, calc in enumerate(self._calcs):
-            res += calc.enouts()[start[i]:end[i]]
+            res += calc.enouts()[start[i] : end[i]]
         return res
 
-    def gradouts(self, select='all'):
+    def gradouts(self, select="all"):
         res = []
         start, end = self.do_selection(select)
         for i, calc in enumerate(self._calcs):
-            res += calc.gradouts()[start[i]:end[i]]
+            res += calc.gradouts()[start[i] : end[i]]
         return res
 
-    def hessouts(self, select='all'):
+    def hessouts(self, select="all"):
         res = []
         start, end = self.do_selection(select)
         for i, calc in enumerate(self._calcs):
-            res += calc.hessouts()[start[i]:end[i]]
+            res += calc.hessouts()[start[i] : end[i]]
         return res
 
     def distribute_sim_count(self, n_total):
         n = np.full(self.n_traj, n_total // self.n_traj)
-        n[:n_total % self.n_traj] += 1
+        n[: n_total % self.n_traj] += 1
         return n.astype(int)
 
     def do_selection(self, select):
-        if select == 'all':
+        if select == "all":
             start, end = np.zeros(self.n_traj, dtype=int), self.total_frame_dist
-        elif select == 'fit':
+        elif select == "fit":
             start, end = np.zeros(self.n_traj, dtype=int), self.n_fit_dist
-        elif select == 'valid':
+        elif select == "valid":
             start, end = self.n_fit_dist, self.total_frame_dist
         else:
-            raise ValueError(f'Wrong selection with: {select}')
+            raise ValueError(f"Wrong selection with: {select}")
         return start, end

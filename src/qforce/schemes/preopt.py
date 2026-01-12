@@ -1,11 +1,11 @@
 from copy import deepcopy
 from calkeeper import CalculationIncompleteError
+
 #
 from .creator import CustomStructureCreator, CalculationStorage
 
 
 class OptimizationOutput:
-
     def __init__(self, mol, coords):
         self._molecule = mol
         self.coords = coords[0]
@@ -26,7 +26,6 @@ class OptimizationOutput:
 
 
 class PreoptCreator(CustomStructureCreator):
-
     def __init__(self, molecule):
         super().__init__(0)
         self._init_molecule = molecule
@@ -76,6 +75,9 @@ class PreoptCreator(CustomStructureCreator):
         results = []
         for calculation in self._preopt.calculations:
             files = calculation.check()
-            results.append(OptimizationOutput(self._init_molecule,
-                                              qm.read_opt(files, software='preopt')))
+            results.append(
+                OptimizationOutput(
+                    self._init_molecule, qm.read_opt(files, software="preopt")
+                )
+            )
         self._preopt.results = results

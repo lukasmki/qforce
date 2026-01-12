@@ -1,8 +1,7 @@
 class TermSelector:
-
     def __init__(self, options, offterm):
-        if 'off' not in options:
-            options['off'] = offterm
+        if "off" not in options:
+            options["off"] = offterm
         self._options = options
 
     def get_factory(self, value):
@@ -13,12 +12,11 @@ class TermSelector:
 
 
 class SingleTermSelector:
-
     def __init__(self, term):
         self._term = term
 
     def get_factory(self, value):
-        if value == 'on':
+        if value == "on":
             return self._term
         raise ValueError(f"Do not know term factory '{value}'")
 

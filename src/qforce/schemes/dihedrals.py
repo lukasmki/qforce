@@ -2,7 +2,6 @@ from .creator import CustomStructureCreator, CalculationStorage
 
 
 class DihedralCreator(CustomStructureCreator):
-
     def __init__(self, mol, job, config):
         # set weight to 0, it has to be set later on
         super().__init__(0)
@@ -11,38 +10,47 @@ class DihedralCreator(CustomStructureCreator):
         #
         self._unique_dihedrals = get_unique_dihedrals(mol, config.scan.do_scan)
         self._scans = CalculationStorage(as_dict=True)
-        self._dihedrals = {name: CalculationStorage() for name in self._unique_dihedrals}
+        self._dihedrals = {
+            name: CalculationStorage() for name in self._unique_dihedrals
+        }
         #
         self.charge = config.qm.charge
         self.multiplicity = config.qm.multiplicity
 
     def _scan(self, qm, software, scanned_atomids):
-        scan_hash = '_'.join(tuple(('_'.join((scanned_atomids+1).astype(dtype=str)),
-                                    software.hash(self.charge, self.multiplicity))))
+        scan_hash = "_".join(
+            tuple(
+                (
+                    "_".join((scanned_atomids + 1).astype(dtype=str)),
+                    software.hash(self.charge, self.multiplicity),
+                )
+            )
+        )
 
-        folder = qm.pathways.getdir('frag', scan_hash, create=True)
+        folder = qm.pathways.getdir("frag", scan_hash, create=True)
 
-        calc = qm.setup_scan_calculation(folder, scan_hash, scanned_atomids,
-                                         self.coords, self.atomids)
+        calc = qm.setup_scan_calculation(
+            folder, scan_hash, scanned_atomids, self.coords, self.atomids
+        )
         calc.scan_hash = scan_hash
         return calc
 
-    def enouts(self, select='all'):
+    def enouts(self, select="all"):
         return []
 
-    def gradouts(self, select='all'):
+    def gradouts(self, select="all"):
         results = []
         for dihedral in self._dihedrals.values():
             for res in dihedral.results:
                 results.append(res)
         return results
 
-    def hessouts(self, select='all'):
+    def hessouts(self, select="all"):
         return []
 
     def setup_pre(self, qm):
         """setup scans"""
-        software = qm.get_software('scan_software')
+        software = qm.get_software("scan_software")
         scans = {}
         for name, scanned_atomids in self._unique_dihedrals.items():
             scans[name] = self._scan(qm, software, scanned_atomids)
@@ -87,11 +95,11 @@ def get_unique_dihedrals(mol, do_scan):
     if not do_scan:
         return {}
 
-    if 'dihedral/flexible' not in mol.terms or len(mol.terms['dihedral/flexible']) == 0:
+    if "dihedral/flexible" not in mol.terms or len(mol.terms["dihedral/flexible"]) == 0:
         return {}
 
-    for term in mol.terms['dihedral/flexible']:
-        dih_type = mol.topo.edge(term.atomids[1], term.atomids[2])['vers']
+    for term in mol.terms["dihedral/flexible"]:
+        dih_type = mol.topo.edge(term.atomids[1], term.atomids[2])["vers"]
         if dih_type not in unique_dihedrals:
             unique_dihedrals[dih_type] = term.atomids
 

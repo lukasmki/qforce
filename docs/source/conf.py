@@ -12,19 +12,19 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../..'))
+
+sys.path.insert(0, os.path.abspath("../.."))
 
 # -- Project information -----------------------------------------------------
 
-project = 'Q-Force'
-copyright = '2020, Selim Sami'
-author = 'Selim Sami'
+project = "Q-Force"
+copyright = "2020, Selim Sami"
+author = "Selim Sami"
 
 # -- General configuration ---------------------------------------------------
 
 # master doc
-master_doc = 'index'
-
+master_doc = "index"
 
 
 # Add any Sphinx extension module names here, as strings. They can be
@@ -33,7 +33,7 @@ master_doc = 'index'
 extensions = ["sphinx_rtd_theme", "colt.sphinx"]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -47,13 +47,13 @@ exclude_patterns = []
 # a list of builtin themes.
 #
 
-html_logo = 'qforce_logo.png'
-html_theme = 'sphinx_rtd_theme'
+html_logo = "qforce_logo.png"
+html_theme = "sphinx_rtd_theme"
 html_theme_options = {
-        'logo_only': True,
+    "logo_only": True,
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]

@@ -45,8 +45,8 @@ def compute_AB_matrix(logger, mol, structs):
 
         full_md_hessian = calc_hessian(qm.coords, mol)
         count = 0
-        for i in range(mol.topo.n_atoms*3):
-            for j in range(i+1):
+        for i in range(mol.topo.n_atoms * 3):
+            for j in range(i + 1):
                 hes = (full_md_hessian[i, j] + full_md_hessian[j, i]) / 2
                 if all([h == 0 for h in hes]) or np.abs(qm_hessian[count]) < 0.0001:
                     qm_hessian = np.delete(qm_hessian, count)
@@ -60,7 +60,7 @@ def compute_AB_matrix(logger, mol, structs):
         difference = qm_hessian - np.array(non_fit)
         A += hessian
         B += list(difference)
-        weights += [weight]*difference.size
+        weights += [weight] * difference.size
 
     logger.info("Calculating energies/forces for all additional structures...")
     for weight_e, qmen in structs.enitr():
@@ -81,16 +81,16 @@ def compute_AB_matrix(logger, mol, structs):
         weight_e = factor_e * weight_f
         mm_energy, mm_force = calc_forces(qmgrad.coords, mol)
         mm_force *= -1  # convert from force to gradient
-        mm_force = mm_force.reshape(mol.terms.n_fitted_terms+1, mol.topo.n_atoms*3)
+        mm_force = mm_force.reshape(mol.terms.n_fitted_terms + 1, mol.topo.n_atoms * 3)
 
         full_qm_forces.append(qmgrad.gradient)
         full_mm_forces.append(mm_force[:-1].T)
         full_qm_energies.append(qmgrad.energy)
-        full_mm_energies.append(mm_energy[:-1]-e_lowest[:-1])
+        full_mm_energies.append(mm_energy[:-1] - e_lowest[:-1])
 
         A += list(mm_force[:-1].T)
         B += list(qmgrad.gradient.flatten() - mm_force[-1])
-        weights += [weight_f]*qmgrad.gradient.size
+        weights += [weight_f] * qmgrad.gradient.size
 
         A.append(mm_energy[:-1] - e_lowest[:-1])
         B.append(qmgrad.energy - mm_energy[-1] + e_lowest[-1])
@@ -104,9 +104,9 @@ def compute_hessian(coords, mol):
     -----
     Perform displacements to calculate the MD hessian numerically.
     """
-    full_hessian = np.zeros((3*mol.topo.n_atoms, 3*mol.topo.n_atoms), dtype=float)
+    full_hessian = np.zeros((3 * mol.topo.n_atoms, 3 * mol.topo.n_atoms), dtype=float)
 
-    with mol.terms.add_ignore('charge_flux'):
+    with mol.terms.add_ignore("charge_flux"):
         for a in range(mol.topo.n_atoms):
             for xyz in range(3):
                 coords[a][xyz] += 1e-5
@@ -114,8 +114,8 @@ def compute_hessian(coords, mol):
                 coords[a][xyz] -= 2e-5
                 _, f_minus = compute_forces(coords, mol)
                 coords[a][xyz] += 1e-5
-                diff = - (f_plus - f_minus) / 2e-5
-                full_hessian[a*3+xyz] = diff.flatten()
+                diff = -(f_plus - f_minus) / 2e-5
+                full_hessian[a * 3 + xyz] = diff.flatten()
     return full_hessian
 
 
@@ -172,11 +172,14 @@ def compute_struct_rmsd(logger, mol, structs):
         # full matrix
         full_md_hessian = compute_hessian(qm.coords, mol)
         # transform in lower triangular matrix
-        md_hessian = (full_md_hessian[np.tril_indices(3*natoms)] + full_md_hessian[np.triu_indices(3*natoms)])/2.0
+        md_hessian = (
+            full_md_hessian[np.tril_indices(3 * natoms)]
+            + full_md_hessian[np.triu_indices(3 * natoms)]
+        ) / 2.0
 
         A += list(md_hessian.flatten())
         B += list(qm_hessian.flatten())
-        weights += [weight]*qm_hessian.size
+        weights += [weight] * qm_hessian.size
 
     logger.info("Calculating energies/forces for all additional structures...")
     for weight_e, qmen in structs.enitr():
@@ -195,7 +198,7 @@ def compute_struct_rmsd(logger, mol, structs):
 
         A += list(mm_force.flatten())
         B += list(qmgrad.gradient.flatten())
-        weights += [weight_f]*qmgrad.gradient.size
+        weights += [weight_f] * qmgrad.gradient.size
 
         A.append(mm_energy - e_lowest)
         B.append(qmgrad.energy)
@@ -220,7 +223,7 @@ def multi_fit(logger, mol, structs):
     fit = reg.coef_
     logger.info("Done!\n")
 
-    with mol.terms.add_ignore('charge_flux'):
+    with mol.terms.add_ignore("charge_flux"):
         for term in mol.terms:
             if term.idx < len(fit):
                 term.set_fitparameters(fit)
@@ -238,18 +241,15 @@ def compute_rmsd(logger, mol, structs):
 
 
 class Fitter:
-
-    def __init__(self, mol, equfits=['bond']):
+    def __init__(self, mol, equfits=["bond"]):
         self.equfits = equfits
         self.mol = deepcopy(mol)
         self.parameters = self._get_fitparameters(equfits)
 
     def _get_fitparameters(self, equfits):
-
         parameters = {}
 
         for termcls in equfits:
-
             for term in self.mol.terms[termcls]:
                 constants = term.constants()
                 for constant in constants:
@@ -266,7 +266,6 @@ class Fitter:
                     values = parameters.get(constant)
                     if values is not None:
                         values.append(term)
-
 
         for terms in self.averagize_parameters(equfits).values():
             if len(terms) == 1:
@@ -301,7 +300,6 @@ class Fitter:
         return sorted_terms
 
     def optimize(self, logger, structs):
-
         # assume ordered dictionaries!
         names = [key for key in self.parameters.keys()]
 
@@ -311,6 +309,7 @@ class Fitter:
                 for term in terms:
                     term.update_constants(values)
             return compute_rmsd(logger, self.mol, structs)
+
         # assumes standard bond and angle terms!
         start_values = []
         for terms in self.parameters.values():
@@ -328,7 +327,7 @@ class Fitter:
 
         for _ in range(20):
             # do first multi_fit
-            res = minimize(_helper, start_values) #  method='Powell')
+            res = minimize(_helper, start_values)  #  method='Powell')
             start_values = res.x
             multi_fit(logger, self.mol, structs)
         return res
@@ -349,22 +348,22 @@ class Fitter:
             values[i] += diff
             update(values)
             val1 = compute_rmsd(logger, self.mol, structs)
-            values[i] -= 2.0*diff
+            values[i] -= 2.0 * diff
             update(values)
             val2 = compute_rmsd(logger, self.mol, structs)
-            grad[i] = (val1 - val2)/(2.0*diff)
+            grad[i] = (val1 - val2) / (2.0 * diff)
         return grad
 
 
 config = {
-        'file': 'qchem.xyz',
-        'options': 'settings.ini',
-        }
+    "file": "qchem.xyz",
+    "options": "settings.ini",
+}
 
 config, job = initialize(config)
 
 qm_hessian, md_hessian, mol, structs = runjob_(config, job)
-fit = Fitter(mol, equfits=['bond'])
+fit = Fitter(mol, equfits=["bond"])
 
 
 print("-------------------------------------")

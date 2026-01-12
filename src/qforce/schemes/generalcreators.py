@@ -1,10 +1,10 @@
 import os
+
 #
 from .creator import CalculationStorage, CustomStructureCreator
 
 
 class MultipleStructureCalculationCreator(CustomStructureCreator):
-
     def __init__(self, folder, weight, atomids, coords):
         super().__init__(weight, folder=folder)
         self._atomids = atomids
@@ -21,12 +21,13 @@ class MultipleStructureCalculationCreator(CustomStructureCreator):
 
 
 class EnergyCalculationCreator(MultipleStructureCalculationCreator):
-
     def setup_main(self, qm):
         folder = self.folder
         #
         os.makedirs(folder, exist_ok=True)
-        self._calcs.calculations = qm.setup_energy_calculations(folder, self._structure_iter())
+        self._calcs.calculations = qm.setup_energy_calculations(
+            folder, self._structure_iter()
+        )
 
     def parse_main(self, qm):
         results = []
@@ -46,12 +47,13 @@ class EnergyCalculationCreator(MultipleStructureCalculationCreator):
 
 
 class GradientCalculationCreator(MultipleStructureCalculationCreator):
-
     def setup_main(self, qm):
         folder = self.folder
 
         os.makedirs(folder, exist_ok=True)
-        self._calcs.calculations = qm.setup_grad_calculations(folder, self._structure_iter())
+        self._calcs.calculations = qm.setup_grad_calculations(
+            folder, self._structure_iter()
+        )
 
     def parse_main(self, qm):
         results = []
@@ -71,12 +73,13 @@ class GradientCalculationCreator(MultipleStructureCalculationCreator):
 
 
 class HessianCalculationCreator(MultipleStructureCalculationCreator):
-
     def setup_main(self, qm):
         folder = self.folder
         os.makedirs(folder, exist_ok=True)
         #
-        self._calcs.calculations = qm.setup_hessian_calculations(folder, self._structure_iter())
+        self._calcs.calculations = qm.setup_hessian_calculations(
+            folder, self._structure_iter()
+        )
 
     def parse_main(self, qm):
         results = []
@@ -96,7 +99,6 @@ class HessianCalculationCreator(MultipleStructureCalculationCreator):
 
 
 class MultipleStructureCalculationIterCreator(CustomStructureCreator):
-
     def __init__(self, folder, weight, itr):
         super().__init__(weight, folder=folder)
         self._struct_itr = itr
@@ -111,12 +113,13 @@ class MultipleStructureCalculationIterCreator(CustomStructureCreator):
 
 
 class EnergyCalculationIterCreator(MultipleStructureCalculationIterCreator):
-
     def setup_main(self, qm):
         folder = self.folder
         #
         os.makedirs(folder, exist_ok=True)
-        self._calcs.calculations = qm.setup_energy_calculations(folder, self._structure_iter())
+        self._calcs.calculations = qm.setup_energy_calculations(
+            folder, self._structure_iter()
+        )
 
     def parse_main(self, qm):
         results = []
@@ -136,12 +139,13 @@ class EnergyCalculationIterCreator(MultipleStructureCalculationIterCreator):
 
 
 class GradientCalculationIterCreator(MultipleStructureCalculationIterCreator):
-
     def setup_main(self, qm):
         folder = self.folder
 
         os.makedirs(folder, exist_ok=True)
-        self._calcs.calculations = qm.setup_grad_calculations(folder, self._structure_iter())
+        self._calcs.calculations = qm.setup_grad_calculations(
+            folder, self._structure_iter()
+        )
 
     def parse_main(self, qm):
         results = []
@@ -161,12 +165,13 @@ class GradientCalculationIterCreator(MultipleStructureCalculationIterCreator):
 
 
 class HessianCalculationIterCreator(MultipleStructureCalculationIterCreator):
-
     def setup_main(self, qm):
         folder = self.folder
         os.makedirs(folder, exist_ok=True)
         #
-        self._calcs.calculations = qm.setup_hessian_calculations(folder, self._structure_iter())
+        self._calcs.calculations = qm.setup_hessian_calculations(
+            folder, self._structure_iter()
+        )
 
     def parse_main(self, qm):
         results = []

@@ -64,7 +64,6 @@ class QMInterface(Colt):
 
 
 class Calculator(Colt):
-
     name = None
 
     def run(self, calculation, ncores):
@@ -350,7 +349,6 @@ class ReadABC(ABC):
 
 
 class EnergyOutput:
-
     def __init__(self, energy, dipole, atomids, coords):
         self.energy = energy
         self.atomids = atomids
@@ -359,7 +357,6 @@ class EnergyOutput:
 
 
 class GradientOutput:
-
     def __init__(self, energy, gradient, dipole, atomids, coords):
         self.energy = energy
         self.gradient = np.array(gradient, dtype=np.float64)
@@ -386,7 +383,6 @@ class HessianOutput:
         lone_e=None,
         n_bonds=None,
     ):
-
         self.fchk_file = fchk_file
         self.n_atoms = self.check_type(n_atoms, "n_atoms", int)
         self.charge = self.check_type(charge, "charge", int)

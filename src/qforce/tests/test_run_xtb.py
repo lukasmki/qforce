@@ -3,7 +3,6 @@ from subprocess import call
 
 import numpy as np
 import pytest
-import parmed as pmd
 from qforce.main import run_qforce
 from qforce_examples import xTB_default
 
@@ -26,9 +25,7 @@ software = xtb
 xtb_command = --gfn 2
 [scan]
 frag_lib = {}/qforce_fragments
- """.format(
-                str(outdir)
-            )
+ """.format(str(outdir))
         )
         xyz = outdir / "propane.xyz"
         xyz.symlink_to(xTB_default["xyz_file"])

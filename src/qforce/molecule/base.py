@@ -5,10 +5,10 @@ import re
 class MappingIterator(Mapping):
     """Base class to store recursively data"""
 
-#    _regex_substring = re.compile(r"(?P<key>\w+)\((?P<subkey>.*)\)")
-#    _key_subkey = '%s(%s)'
+    #    _regex_substring = re.compile(r"(?P<key>\w+)\((?P<subkey>.*)\)")
+    #    _key_subkey = '%s(%s)'
     _regex_substring = re.compile(r"(?P<key>\w+)\/(?P<subkey>.*)")
-    _key_subkey = '%s/%s'
+    _key_subkey = "%s/%s"
 
     def __init__(self, dct, ignore=tuple()):
         self._data = dct
@@ -19,7 +19,7 @@ class MappingIterator(Mapping):
         match = cls._regex_substring.match(string)
         if match is None:
             return string, None
-        return match.group('key'), match.group('subkey')
+        return match.group("key"), match.group("subkey")
 
     def ho_keys(self):
         return self._data.keys()
@@ -66,38 +66,43 @@ class MappingIterator(Mapping):
         return key, data
 
     def _perform_ignore_action(self, dct, ignore, action=lambda *args: None):
-
-        ignore_keys = {'__REGULAR_KEY__': []}
+        ignore_keys = {"__REGULAR_KEY__": []}
         for ign in ignore:
             key, subkey = self.get_key_subkey(ign)
             if subkey is None:
-                ignore_keys['__REGULAR_KEY__'].append(key)
+                ignore_keys["__REGULAR_KEY__"].append(key)
                 continue
             if key not in dct:
                 # print(f"WARNING: '{key}' not known, therefore ignored!")
                 continue
             iterm = dct[key]
             if not isinstance(iterm, MappingIterator):
-                print(f"WARNING: '{key}({subkey})' cannot be modified therefore ignored!")
+                print(
+                    f"WARNING: '{key}({subkey})' cannot be modified therefore ignored!"
+                )
                 continue
             if key not in ignore_keys:
                 ignore_keys[key] = []
             ignore_keys[key].append(subkey)
 
         for name, keys in ignore_keys.items():
-            if name == '__REGULAR_KEY__':
+            if name == "__REGULAR_KEY__":
                 continue
             action(dct, name, keys)
 
-        return ignore_keys['__REGULAR_KEY__']
+        return ignore_keys["__REGULAR_KEY__"]
 
     def _set_ignore(self, dct, ignore):
-        return self._perform_ignore_action(dct, ignore, action=lambda dct,
-                                           name, keys: dct[name].add_ignore_keys(keys))
+        return self._perform_ignore_action(
+            dct, ignore, action=lambda dct, name, keys: dct[name].add_ignore_keys(keys)
+        )
 
     def _remove_ignore(self, dct, ignore):
-        return self._perform_ignore_action(dct, ignore, action=lambda dct,
-                                           name, keys: dct[name].remove_ignore_keys(keys))
+        return self._perform_ignore_action(
+            dct,
+            ignore,
+            action=lambda dct, name, keys: dct[name].remove_ignore_keys(keys),
+        )
 
     def __getitem__(self, key):
         key, data = self._goto_key(key)

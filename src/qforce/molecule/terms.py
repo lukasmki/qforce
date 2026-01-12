@@ -1,17 +1,34 @@
 from contextlib import contextmanager
 from copy import deepcopy
 import numpy as np
+
 #
 from .storage import MultipleTermStorge, TermStorage
 from .dihedral_terms import DihedralTerms
-from .bond_and_angle_terms import HarmonicBondTerm, MorseBondTerm, HarmonicAngleTerm, CosineAngleTerm, UreyBradleyTerm
-from .coupling_terms import (CrossBondAngleTerm, CrossBondBondTerm, CrossAngleAngleTerm, CrossBondCosineAngleTerm,
-                             CrossCosineAngleAngleTerm, CrossDihedBondTerm, CrossDihedAngleTerm,
-                             CrossCosCubeDihedAngleTerm, CrossCosCubeDihedBondTerm,
-                             CrossCosCubeDihedAngleAngleTerm, CrossDihedAngleAngleTerm)
+from .bond_and_angle_terms import (
+    HarmonicBondTerm,
+    MorseBondTerm,
+    HarmonicAngleTerm,
+    CosineAngleTerm,
+    UreyBradleyTerm,
+)
+from .coupling_terms import (
+    CrossBondAngleTerm,
+    CrossBondBondTerm,
+    CrossAngleAngleTerm,
+    CrossBondCosineAngleTerm,
+    CrossCosineAngleAngleTerm,
+    CrossDihedBondTerm,
+    CrossDihedAngleTerm,
+    CrossCosCubeDihedAngleTerm,
+    CrossCosCubeDihedBondTerm,
+    CrossCosCubeDihedAngleAngleTerm,
+    CrossDihedAngleAngleTerm,
+)
 from .non_bonded_terms import NonBondedTerms
 from .charge_flux_terms import ChargeFluxTerms
 from .local_frame import LocalFrameTerms
+
 #
 from .base import MappingIterator
 from .baseterms import TermFactory, EmptyTerm
@@ -21,64 +38,70 @@ from .helper import DefaultFalseDict
 
 def split_name(name):
     """split the name by '/' and return the names"""
-    maintype, subtype = name.split('/')
+    maintype, subtype = name.split("/")
     maintype = maintype.strip()
     subtype = subtype.strip()
     return maintype, subtype
 
 
 class Terms(MappingIterator):
-
-    _term_factories = to_selector({
-        'bond': {
-            'harmonic': HarmonicBondTerm,
-            'morse': MorseBondTerm,
+    _term_factories = to_selector(
+        {
+            "bond": {
+                "harmonic": HarmonicBondTerm,
+                "morse": MorseBondTerm,
             },
-        'angle': {
-            'harmonic': HarmonicAngleTerm,
-            'cosine': CosineAngleTerm,
+            "angle": {
+                "harmonic": HarmonicAngleTerm,
+                "cosine": CosineAngleTerm,
             },
-        'cross_bond_bond': CrossBondBondTerm,
-        #
-        'urey': UreyBradleyTerm,
-        #
-        'cross_bond_angle': {
-            'bond_angle': CrossBondAngleTerm,
-            'bond_cos_angle': CrossBondCosineAngleTerm,
+            "cross_bond_bond": CrossBondBondTerm,
+            #
+            "urey": UreyBradleyTerm,
+            #
+            "cross_bond_angle": {
+                "bond_angle": CrossBondAngleTerm,
+                "bond_cos_angle": CrossBondCosineAngleTerm,
+            },
+            #
+            "cross_angle_angle": {
+                "harmonic": CrossAngleAngleTerm,
+                "cosine": CrossCosineAngleAngleTerm,
+            },
+            #
+            "cross_dihed_angle": {
+                "cos_cube": CrossCosCubeDihedAngleTerm,
+                "periodic": CrossDihedAngleTerm,
+            },
+            #
+            "cross_dihed_bond": {
+                "cos_cube": CrossCosCubeDihedBondTerm,
+                "periodic": CrossDihedBondTerm,
+            },
+            "cross_dihed_angle_angle": {
+                "cos_cube": CrossCosCubeDihedAngleAngleTerm,
+                "periodic": CrossDihedAngleAngleTerm,
+            },
+            #
+            "dihedral": DihedralTerms,
+            #
+            "non_bonded": NonBondedTerms,
+            #
+            "charge_flux": ChargeFluxTerms,
+            #
+            "local_frame": LocalFrameTerms,
         },
-        #
-        'cross_angle_angle': {
-            'harmonic': CrossAngleAngleTerm,
-            'cosine': CrossCosineAngleAngleTerm,
-        },
-        #
-        'cross_dihed_angle': {
-            'cos_cube': CrossCosCubeDihedAngleTerm,
-            'periodic': CrossDihedAngleTerm
-        },
-        #
-        'cross_dihed_bond': {
-            'cos_cube': CrossCosCubeDihedBondTerm,
-            'periodic': CrossDihedBondTerm
-        },
-        'cross_dihed_angle_angle': {
-            'cos_cube': CrossCosCubeDihedAngleAngleTerm,
-            'periodic': CrossDihedAngleAngleTerm
-        },
-        #
-        'dihedral': DihedralTerms,
-        #
-        'non_bonded': NonBondedTerms,
-        #
-        'charge_flux': ChargeFluxTerms,
-        #
-        'local_frame': LocalFrameTerms,
-    }, EmptyTerm)
+        EmptyTerm,
+    )
 
     def __init__(self, terms, ignore, not_fit_terms):
         MappingIterator.__init__(self, terms, ignore)
-        self.n_fitted_terms, self.n_fitted_flux_terms = self._set_fit_term_idx(not_fit_terms)
-        self.term_names = [name for name in self._term_factories.keys() if name not in ignore]
+        self.n_fitted_terms, self.n_fitted_flux_terms = self._set_fit_term_idx(
+            not_fit_terms
+        )
+        self.term_names = [
+            name for name in self._term_factories.keys() if name not in ignore
+        ]
         self._term_paths = self._get_term_paths(terms)
 
         self.average_equivalent_terms()
@@ -87,7 +110,7 @@ class Terms(MappingIterator):
         main_terms = {}
         main_equs = {}
 
-        for term in list(self['bond']) + list(self['angle']):
+        for term in list(self["bond"]) + list(self["angle"]):
             if isinstance(term.equ, list):
                 equ = term.equ[0]
             else:
@@ -114,7 +137,6 @@ class Terms(MappingIterator):
                     equ_idx = main_terms[term.equ]
                     term.equ = main_equs[equ_idx]
 
-
     @classmethod
     def add_terms(cls, terms, name, termcase, topo, non_bonded, settings=None):
         factory = cls._term_factories[name].get_factory(termcase)
@@ -123,7 +145,15 @@ class Terms(MappingIterator):
             terms[name] = _terms
 
     @classmethod
-    def from_topology(cls, config, topo, non_bonded, ff, *, not_fit=['non_bonded', 'charge_flux', 'local_frame']):
+    def from_topology(
+        cls,
+        config,
+        topo,
+        non_bonded,
+        ff,
+        *,
+        not_fit=["non_bonded", "charge_flux", "local_frame"],
+    ):
         config = config.__dict__
         terms = {}
         factories = {}
@@ -132,12 +162,12 @@ class Terms(MappingIterator):
         for term in ff.terms():
             setting = config[term]
             # get if term is turned on/off
-            if setting == 'off':
+            if setting == "off":
                 # ignore terms that are turned off
                 ignore.append(term)
                 continue
             #
-            if '/' not in term:
+            if "/" not in term:
                 cls.add_terms(terms, term, setting, topo, non_bonded)
             else:
                 maintype, subtype = split_name(term)
@@ -147,23 +177,30 @@ class Terms(MappingIterator):
                 factories[maintype][subtype] = setting
         # get factory terms, currently no selector for termfactories
         for term, settings in factories.items():
-            cls.add_terms(terms, term, 'on', topo, non_bonded, settings)
+            cls.add_terms(terms, term, "on", topo, non_bonded, settings)
 
-        not_fit_terms = [term for term in not_fit if term not in ignore and term in config.keys()]
+        not_fit_terms = [
+            term for term in not_fit if term not in ignore and term in config.keys()
+        ]
         return cls(terms, ignore, not_fit_terms)
 
     @classmethod
     def from_terms(cls, terms, ignore, not_fit_terms):
         return cls(terms, ignore, not_fit_terms)
 
-    def subset(self, fragment, mapping, remove_non_bonded=[], ignore=[], not_fit_terms=[]):
+    def subset(
+        self, fragment, mapping, remove_non_bonded=[], ignore=[], not_fit_terms=[]
+    ):
         subterms = {}
         for key, term in self.ho_items():
             if key in ignore:
                 continue
             if isinstance(term, MultipleTermStorge):
-                key_ignore = [term.get_key_subkey(ignore_key)[1] for ignore_key in ignore
-                              if ignore_key.startswith(key)]
+                key_ignore = [
+                    term.get_key_subkey(ignore_key)[1]
+                    for ignore_key in ignore
+                    if ignore_key.startswith(key)
+                ]
                 subterms[key] = term.get_subset(fragment, mapping, key_ignore)
             elif isinstance(term, TermStorage):
                 subterms[key] = term.get_subset(fragment, mapping, remove_non_bonded)
@@ -175,7 +212,7 @@ class Terms(MappingIterator):
     @classmethod
     def add_term(cls, name, term):
         if not isinstance(term, TermFactory):
-            raise ValueError('New term needs to be a TermFactory!')
+            raise ValueError("New term needs to be a TermFactory!")
         cls._term_factories[name] = term
 
     @contextmanager
@@ -185,28 +222,27 @@ class Terms(MappingIterator):
         self.remove_ignore_keys(ignore_terms)
 
     def get_terms_from_name(self, name, atomids=None):
-        termtyp = name.partition('(')[0]
+        termtyp = name.partition("(")[0]
         terms = self._get_terms(termtyp)
         return terms.fulfill(name, atomids)
 
     def remove_terms_by_name(self, name, atomids=None):
-        termtyp = name.partition('(')[0]
+        termtyp = name.partition("(")[0]
         terms = self._get_terms(termtyp)
         terms.remove_term(name, atomids)
 
     def _set_fit_term_idx(self, not_fit_terms):
-
         with self.add_ignore(not_fit_terms):
             names = list(set(str(term) for term in self))
             for term in self:
                 term.set_idx(names.index(str(term)))
         n_fitted_terms = len(names)
 
-        if 'charge_flux' not in self:
+        if "charge_flux" not in self:
             n_fitted_flux_terms = 0
         else:
-            names = list(set(str(term) for term in self['charge_flux']))
-            for term in self['charge_flux']:
+            names = list(set(str(term) for term in self["charge_flux"]))
+            for term in self["charge_flux"]:
                 term.set_flux_idx(names.index(str(term)))
             n_fitted_flux_terms = len(names)
 
@@ -235,7 +271,9 @@ class Terms(MappingIterator):
                 for key, termstorage in term.ho_items():
                     self._get_storage_paths(paths, termstorage, key, result)
             else:
-                raise ValueError("Terms can only be stored in TermStorage or MultipleTermStorge")
+                raise ValueError(
+                    "Terms can only be stored in TermStorage or MultipleTermStorge"
+                )
         return paths
 
     def _get_storage_paths(self, result, term, name, names=[]):
@@ -248,7 +286,9 @@ class Terms(MappingIterator):
             for key, termstorage in term.ho_items():
                 self._get_storage_paths(result, termstorage, key, names)
         else:
-            raise ValueError("Terms can only be stored in TermStorage or MultipleTermStorge")
+            raise ValueError(
+                "Terms can only be stored in TermStorage or MultipleTermStorge"
+            )
 
     def _get_terms(self, termname):
         names = self._term_paths.get(termname, None)

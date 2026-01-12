@@ -1,5 +1,6 @@
 import numpy as np
 from abc import abstractmethod
+
 #
 from .baseterms import TermABC, TermFactory
 from ..forces import get_dist, get_angle
@@ -7,7 +8,7 @@ from ..forces import get_dist, get_angle
 
 class ChargeFluxBaseTerm(TermABC):
     def _calc_forces(self, crd, force, fconst):
-        return 0.
+        return 0.0
 
     def do_flux(self, crd, q_flux):
         self._calc_flux(crd, q_flux, self.fconst)
@@ -26,16 +27,16 @@ class ChargeFluxBaseTerm(TermABC):
 
 
 class BondChargeFluxTerm(ChargeFluxBaseTerm):
-    name = 'BondChargeFluxTerm'
+    name = "BondChargeFluxTerm"
 
     def _calc_flux(self, crd, q_flux, j_param):
         a2, a1, a3 = self.atomids
         r = get_dist(crd[a1], crd[a3])[1]
-        dr = r-self.equ
+        dr = r - self.equ
         # alpha = 2.2305741871043736
         # dr = 1-np.exp(-alpha*(r-self.equ))
-        q_flux[a2] += j_param*dr
-        q_flux[a1] -= j_param*dr
+        q_flux[a2] += j_param * dr
+        q_flux[a1] -= j_param * dr
 
     def write_forcefield(self, software, writer):
         software.write_charge_flux_bond_term(self, writer)
@@ -45,15 +46,15 @@ class BondChargeFluxTerm(ChargeFluxBaseTerm):
 
 
 class AngleChargeFluxTerm(ChargeFluxBaseTerm):
-    name = 'AngleChargeFluxTerm'
+    name = "AngleChargeFluxTerm"
 
     def _calc_flux(self, crd, q_flux, j_param):
         a2, a3, a1, a4 = self.atomids
         theta = get_angle([crd[a3], crd[a1], crd[a4]])[0]
         # dtheta = np.cos(theta)-np.cos(self.equ)
-        dtheta = theta-self.equ
-        q_flux[a2] += j_param*dtheta
-        q_flux[a1] -= j_param*dtheta
+        dtheta = theta - self.equ
+        q_flux[a2] += j_param * dtheta
+        q_flux[a1] -= j_param * dtheta
 
     def write_forcefield(self, software, writer):
         software.write_charge_flux_angle_term(self, writer)
@@ -63,18 +64,18 @@ class AngleChargeFluxTerm(ChargeFluxBaseTerm):
 
 
 class BondBondChargeFluxTerm(ChargeFluxBaseTerm):
-    name = 'BondBondChargeFluxTerm'
+    name = "BondBondChargeFluxTerm"
 
     def _calc_flux(self, crd, q_flux, j_param):
         a2, a1, a3 = self.atomids
 
         r1 = get_dist(crd[a1], crd[a2])[1]
-        dr1 = r1-self.equ[0]
+        dr1 = r1 - self.equ[0]
         r2 = get_dist(crd[a1], crd[a3])[1]
-        dr2 = r2-self.equ[1]
+        dr2 = r2 - self.equ[1]
 
-        q_flux[a2] += j_param*dr1*dr2
-        q_flux[a3] -= j_param*dr1*dr2
+        q_flux[a2] += j_param * dr1 * dr2
+        q_flux[a3] -= j_param * dr1 * dr2
 
     def write_forcefield(self, software, writer):
         software.write_charge_flux_bond_bond_term(self, writer)
@@ -84,19 +85,19 @@ class BondBondChargeFluxTerm(ChargeFluxBaseTerm):
 
 
 class BondAngleChargeFluxTerm(ChargeFluxBaseTerm):
-    name = 'BondAngleChargeFluxTerm'
+    name = "BondAngleChargeFluxTerm"
 
     def _calc_flux(self, crd, q_flux, j_param):
         a2, a3, a1, a4 = self.atomids
         theta = get_angle([crd[a3], crd[a1], crd[a4]])[0]
-        dtheta = theta-self.equ[0]
+        dtheta = theta - self.equ[0]
 
         r = get_dist(crd[a1], crd[a2])[1]
-        dr = r-self.equ[1]
+        dr = r - self.equ[1]
 
-        q_flux[a2] += 2*j_param*dtheta*dr
-        q_flux[a3] -= j_param*dtheta*dr
-        q_flux[a4] -= j_param*dtheta*dr
+        q_flux[a2] += 2 * j_param * dtheta * dr
+        q_flux[a3] -= j_param * dtheta * dr
+        q_flux[a4] -= j_param * dtheta * dr
 
     def write_forcefield(self, software, writer):
         software.write_charge_flux_bond_angle_term(self, writer)
@@ -106,20 +107,20 @@ class BondAngleChargeFluxTerm(ChargeFluxBaseTerm):
 
 
 class AngleAngleChargeFluxTerm(ChargeFluxBaseTerm):
-    name = 'AngleAngleChargeFluxTerm'
+    name = "AngleAngleChargeFluxTerm"
 
     def _calc_flux(self, crd, q_flux, j_param):
         a2, a1, a3, a4, a1, a5 = self.atomids
         theta1 = get_angle([crd[a2], crd[a1], crd[a3]])[0]
-        dtheta1 = theta1-self.equ[0]
+        dtheta1 = theta1 - self.equ[0]
         theta2 = get_angle([crd[a4], crd[a1], crd[a5]])[0]
-        dtheta2 = theta2-self.equ[1]
+        dtheta2 = theta2 - self.equ[1]
 
-        q_flux[a2] += j_param*dtheta1*dtheta2
-        q_flux[a3] += j_param*dtheta1*dtheta2
+        q_flux[a2] += j_param * dtheta1 * dtheta2
+        q_flux[a3] += j_param * dtheta1 * dtheta2
 
-        q_flux[a4] -= j_param*dtheta1*dtheta2
-        q_flux[a5] -= j_param*dtheta1*dtheta2
+        q_flux[a4] -= j_param * dtheta1 * dtheta2
+        q_flux[a5] -= j_param * dtheta1 * dtheta2
 
     def write_forcefield(self, software, writer):
         software.write_charge_flux_angle_angle_term(self, writer)
@@ -129,20 +130,28 @@ class AngleAngleChargeFluxTerm(ChargeFluxBaseTerm):
 
 
 class ChargeFluxTerms(TermFactory):
-    name = 'ChargeFluxTerms'
+    name = "ChargeFluxTerms"
 
     _term_types = {
-        'bond': BondChargeFluxTerm,
-        'bond_prime': BondChargeFluxTerm,
-        'angle': AngleChargeFluxTerm,
-        'angle_prime': AngleChargeFluxTerm,
-        '_bond_bond': BondBondChargeFluxTerm,
-        '_bond_angle': BondAngleChargeFluxTerm,
-        '_angle_angle': AngleAngleChargeFluxTerm,
+        "bond": BondChargeFluxTerm,
+        "bond_prime": BondChargeFluxTerm,
+        "angle": AngleChargeFluxTerm,
+        "angle_prime": AngleChargeFluxTerm,
+        "_bond_bond": BondBondChargeFluxTerm,
+        "_bond_angle": BondAngleChargeFluxTerm,
+        "_angle_angle": AngleAngleChargeFluxTerm,
     }
 
     _always_on = []
-    _default_off = ['bond', 'angle', 'bond_prime', 'angle_prime', '_bond_bond', '_bond_angle', '_angle_angle']
+    _default_off = [
+        "bond",
+        "angle",
+        "bond_prime",
+        "angle_prime",
+        "_bond_bond",
+        "_bond_angle",
+        "_angle_angle",
+    ]
 
     @classmethod
     def _get_terms(cls, topo, non_bonded, termtypes):
@@ -162,13 +171,13 @@ class ChargeFluxTerms(TermFactory):
         else:
             central_atoms = np.where(topo.n_neighbors > 1)[0]
 
-        bonds_on = termtypes.is_on('bond')
-        bond_bond_on = termtypes.is_on('_bond_bond')
-        bond_prime_on = termtypes.is_on('bond_prime')
-        angle_on = termtypes.is_on('angle')
-        angle_prime_on = termtypes.is_on('angle_prime')
-        bond_angle_on = termtypes.is_on('_bond_angle')
-        angle_angle_on = termtypes.is_on('_angle_angle')
+        bonds_on = termtypes.is_on("bond")
+        bond_bond_on = termtypes.is_on("_bond_bond")
+        bond_prime_on = termtypes.is_on("bond_prime")
+        angle_on = termtypes.is_on("angle")
+        angle_prime_on = termtypes.is_on("angle_prime")
+        bond_angle_on = termtypes.is_on("_bond_angle")
+        angle_angle_on = termtypes.is_on("_angle_angle")
 
         for a1 in central_atoms:
             neighs = topo.neighbors[0][a1]
@@ -178,7 +187,7 @@ class ChargeFluxTerms(TermFactory):
             for a2 in topo.neighbors[0][a1]:
                 dist = get_dist(topo.coords[a1], topo.coords[a2])[1]
                 if bonds_on:
-                    add_term('bond', [a2, a1, a2], dist, 'bond')
+                    add_term("bond", [a2, a1, a2], dist, "bond")
 
                 for a3 in topo.neighbors[0][a1]:
                     if a2 <= a3:
@@ -186,34 +195,48 @@ class ChargeFluxTerms(TermFactory):
 
                     if bond_bond_on:
                         dist2 = get_dist(topo.coords[a1], topo.coords[a3])[1]
-                        add_term('_bond_bond', [a2, a1, a3], [dist, dist2], 'bond_bond')
+                        add_term("_bond_bond", [a2, a1, a3], [dist, dist2], "bond_bond")
 
             for a2, _, a3 in angles:
                 if bond_prime_on:
                     dist = get_dist(topo.coords[a1], topo.coords[a3])[1]
-                    add_term('bond_prime', [a2, a1, a3], dist, 'bond_prime')
+                    add_term("bond_prime", [a2, a1, a3], dist, "bond_prime")
                     dist = get_dist(topo.coords[a1], topo.coords[a2])[1]
-                    add_term('bond_prime', [a3, a1, a2], dist, 'bond_prime')
+                    add_term("bond_prime", [a3, a1, a2], dist, "bond_prime")
 
                 theta = get_angle(topo.coords[[a2, a1, a3]])[0]
 
                 if angle_on:
-                    add_term('angle', [a2, a2, a1, a3], theta, 'angle')
-                    add_term('angle', [a3, a3, a1, a2], theta, 'angle')
+                    add_term("angle", [a2, a2, a1, a3], theta, "angle")
+                    add_term("angle", [a3, a3, a1, a2], theta, "angle")
 
                 if angle_prime_on:
-                    options = [option for option in neighs if option != a2 and option != a3]
+                    options = [
+                        option for option in neighs if option != a2 and option != a3
+                    ]
                     if options:
                         for a4 in options:
-                            add_term('angle_prime', [a4, a3, a1, a2], theta, 'angle_prime')
+                            add_term(
+                                "angle_prime", [a4, a3, a1, a2], theta, "angle_prime"
+                            )
 
                 if bond_angle_on:
                     for a4 in neighs:
                         dist = get_dist(topo.coords[a1], topo.coords[a4])[1]
                         if a4 in [a2, a3]:
-                            add_term('_bond_angle', [a4, a2, a1, a3], [theta, dist], 'bond_angle')
+                            add_term(
+                                "_bond_angle",
+                                [a4, a2, a1, a3],
+                                [theta, dist],
+                                "bond_angle",
+                            )
                         else:
-                            add_term('_bond_angle', [a4, a2, a1, a3], [theta, dist], 'bond_angle_prime')
+                            add_term(
+                                "_bond_angle",
+                                [a4, a2, a1, a3],
+                                [theta, dist],
+                                "bond_angle_prime",
+                            )
 
                 if angle_angle_on:
                     for a4, _, a5 in angles:
@@ -221,8 +244,18 @@ class ChargeFluxTerms(TermFactory):
                             continue
                         theta2 = get_angle(topo.coords[[a4, a1, a5]])[0]
                         if a4 in [a2, a3] or a5 in [a2, a3]:
-                            add_term('_angle_angle', [a2, a1, a3, a4, a1, a5], [theta, theta2], 'angle_angle')
+                            add_term(
+                                "_angle_angle",
+                                [a2, a1, a3, a4, a1, a5],
+                                [theta, theta2],
+                                "angle_angle",
+                            )
                         else:
-                            add_term('_angle_angle', [a2, a1, a3, a4, a1, a5], [theta, theta2], 'angle_angle_prime')
+                            add_term(
+                                "_angle_angle",
+                                [a2, a1, a3, a4, a1, a5],
+                                [theta, theta2],
+                                "angle_angle_prime",
+                            )
 
         return terms

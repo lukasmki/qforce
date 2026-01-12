@@ -2,13 +2,13 @@ import os.path
 from ase.io import read, write
 from ase import Atoms
 import numpy as np
+
 #
 from .qm_base import WriteABC, ReadABC, QMInterface, Calculator
 
 
 class CrestCalculator(Calculator):
-
-    name = 'crest'
+    name = "crest"
     _user_input = ""
 
     @classmethod
@@ -16,31 +16,29 @@ class CrestCalculator(Calculator):
         return cls()
 
     def _commands(self, filename, basename, ncores):
-        return [f'bash {filename} > {basename}.out']
+        return [f"bash {filename} > {basename}.out"]
 
 
 class Crest(QMInterface):
-
     _user_input = """
     # Extra command line passed to the xtb executable
     xtb_command = --gfn2 :: str 
 
     """
 
-    name = 'crest'
+    name = "crest"
     has_torsiondrive = False
 
-    _method = ['xtb_command']
+    _method = ["xtb_command"]
 
     def __init__(self, config):
         super().__init__(config, ReadCrest(config), WriteCrest(config))
 
 
 class ReadCrest(ReadABC):
-
     hessian_files = {}
 
-    opt_files = {'coord_file': ['crest_conformers.xyz'], 'wbo_file': ['wbo']}
+    opt_files = {"coord_file": ["crest_conformers.xyz"], "wbo_file": ["wbo"]}
 
     sp_files = {}
 
@@ -61,7 +59,7 @@ class ReadCrest(ReadABC):
         raise NotImplementedError
 
     def hessian(self, config, hess_file, pc_file, coord_file, wbo_file):
-        """ Extract hessian information from all the relevant files.
+        """Extract hessian information from all the relevant files.
 
         Parameters
         ----------
@@ -100,7 +98,7 @@ class ReadCrest(ReadABC):
         raise NotImplementedError
 
     def scan(self, config, file_name):
-        """ Read data from the scan file.
+        """Read data from the scan file.
 
         Parameters
         ----------
@@ -128,7 +126,7 @@ class ReadCrest(ReadABC):
 
     @staticmethod
     def _read_xyzs(coord_file):
-        """ Read the optimised coordinate xyz file.
+        """Read the optimised coordinate xyz file.
 
         For xTB jobs, the optimised geometry will be stored as a file
         with the extension .xtbopt.xyz.
@@ -147,12 +145,12 @@ class ReadCrest(ReadABC):
         coords : array
             An array of float of the shape (n_atoms, 3).
         """
-        mols = read(coord_file, index=':')
+        mols = read(coord_file, index=":")
         return [mol.get_positions() for mol in mols]
 
     @staticmethod
     def _read_crest_wbo_analysis(out_file, n_atoms):
-        """ Read the wbo analysis from CREST.
+        """Read the wbo analysis from CREST.
 
         Parameters
         ----------
@@ -183,9 +181,8 @@ class ReadCrest(ReadABC):
 
 
 class WriteCrest(WriteABC):
-
     def opt(self, file, job_name, settings, coords, atnums):
-        """ Write the input file for optimization
+        """Write the input file for optimization
 
         Parameters
         ----------
@@ -205,20 +202,25 @@ class WriteCrest(WriteABC):
         # Given that the xTB input has to be given in the command line.
         # We create the xTB command template here.
 
-        cmd = f'crest {job_name}_input.xyz --chrg {settings.charge} --uhf {settings.multiplicity - 1} ' \
-              f'{self.config.xtb_command} -T {settings.n_proc} -alpb water\n' \
-              f'xtb crest_conformers.xyz --chrg {settings.charge} --uhf {settings.multiplicity - 1} ' \
-              f'{self.config.xtb_command} -T {settings.n_proc} -alpb water\n' \
-
+        cmd = (
+            f"crest {job_name}_input.xyz --chrg {settings.charge} --uhf {settings.multiplicity - 1} "
+            f"{self.config.xtb_command} -T {settings.n_proc} -alpb water\n"
+            f"xtb crest_conformers.xyz --chrg {settings.charge} --uhf {settings.multiplicity - 1} "
+            f"{self.config.xtb_command} -T {settings.n_proc} -alpb water\n"
+        )
         # Write the hessian.inp which is the command line input
         file.write(cmd)
         # Write the coordinates, which is the standard xyz file.
         mol = Atoms(positions=coords, numbers=atnums)
-        write(f'{base}/{job_name}_input.xyz', mol, plain=True,
-              comment='CREST input structure')
+        write(
+            f"{base}/{job_name}_input.xyz",
+            mol,
+            plain=True,
+            comment="CREST input structure",
+        )
 
     def hessian(self, file, job_name, settings, coords, atnums):
-        """ Write the input file for hessian and charge calculation.
+        """Write the input file for hessian and charge calculation.
 
         Parameters
         ----------
@@ -241,9 +243,19 @@ class WriteCrest(WriteABC):
     def charges(self, file, job_name, settings, coords, atnums):
         raise NotImplementedError
 
-    def scan(self, file, job_name, settings, coords, atnums, scanned_atoms,
-             start_angle, charge, multiplicity):
-        """ Write the input file for the dihedral scan and charge calculation.
+    def scan(
+        self,
+        file,
+        job_name,
+        settings,
+        coords,
+        atnums,
+        scanned_atoms,
+        start_angle,
+        charge,
+        multiplicity,
+    ):
+        """Write the input file for the dihedral scan and charge calculation.
 
         Parameters
         ----------

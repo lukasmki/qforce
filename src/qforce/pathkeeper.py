@@ -1,4 +1,5 @@
 """keep track of basic pathways in qforce"""
+
 import os
 import shutil
 from pathlib import Path
@@ -12,7 +13,7 @@ def _resort(orders, final_orders):
             final_orders[name] = order
         else:
             if order in final_orders:
-                final_orders[name] = final_orders[order]+1
+                final_orders[name] = final_orders[order] + 1
             else:
                 missing[name] = order
     return missing
@@ -21,7 +22,7 @@ def _resort(orders, final_orders):
 def _compute_order(data):
     orders = {}
     for key, value in data.items():
-        if isinstance(value, str) or value[0] == '':
+        if isinstance(value, str) or value[0] == "":
             orders[key] = 0
         else:
             orders[key] = value[0]
@@ -74,12 +75,10 @@ class Pathlib:
         return self._data[key]
 
     def files(self):
-        return [name for name in self._data
-                if os.path.splitext(name)[1] != '']
+        return [name for name in self._data if os.path.splitext(name)[1] != ""]
 
     def dirs(self):
-        return [name for name in self._data
-                if os.path.splitext(name)[1] == '']
+        return [name for name in self._data if os.path.splitext(name)[1] == ""]
 
     @staticmethod
     def _format(data):
@@ -90,13 +89,15 @@ class Pathlib:
             if isinstance(value, str):
                 result[key] = value
             else:
-                if value[0] == '':
+                if value[0] == "":
                     result[key] = value[1]
                 else:
                     result[key] = os.path.join(result[value[0]], value[1])
 
-        return {name: (Template(value), get_template_arguments(value))
-                for name, value in result.items()}
+        return {
+            name: (Template(value), get_template_arguments(value))
+            for name, value in result.items()
+        }
 
     def __setitem__(self, key, value):
         raise ValueError("Cannot set item for Pathways")
@@ -105,27 +106,29 @@ class Pathlib:
 class Pathways:
     """Basic class to keep track of all important file paths in qforce"""
 
-    pathways = Pathlib({
-        # folders
-        'preopt': 'crest',
-        'hessian': 'hessian',
-        'addstruct': 'additional',
-        'hessian_new': 'hessian_new',
-        'hessian_charge': ['hessian', 'charge'],
-        'hessian_energy': ['hessian', '${idx}_en_conformer'],
-        'hessian_gradient': ['hessian', '${idx}_grad_conformer'],
-        'hessian_step': ['hessian', '${idx}_conformer'],
-        'dihedrals': 'dihedrals',
-        'frag': ['dihedrals', '${frag_id}'],
-        'frag_charge': ['frag', 'charge'],
-        'frag_step': ['frag', 'step_${idx}'],
-        'frag_mm': ['frag', 'mm'],
-        # files should have ending!
-        'settings.ini': 'settings.ini',
-        'init.xyz': 'init.xyz',
-        'preopt.xyz': ['preopt', 'preopt.xyz'],
-        'calculations.json': '_calculations.json',
-    })
+    pathways = Pathlib(
+        {
+            # folders
+            "preopt": "crest",
+            "hessian": "hessian",
+            "addstruct": "additional",
+            "hessian_new": "hessian_new",
+            "hessian_charge": ["hessian", "charge"],
+            "hessian_energy": ["hessian", "${idx}_en_conformer"],
+            "hessian_gradient": ["hessian", "${idx}_grad_conformer"],
+            "hessian_step": ["hessian", "${idx}_conformer"],
+            "dihedrals": "dihedrals",
+            "frag": ["dihedrals", "${frag_id}"],
+            "frag_charge": ["frag", "charge"],
+            "frag_step": ["frag", "step_${idx}"],
+            "frag_mm": ["frag", "mm"],
+            # files should have ending!
+            "settings.ini": "settings.ini",
+            "init.xyz": "init.xyz",
+            "preopt.xyz": ["preopt", "preopt.xyz"],
+            "calculations.json": "_calculations.json",
+        }
+    )
 
     _files = pathways.files()
     _dirs = pathways.dirs()
@@ -160,35 +163,35 @@ class Pathways:
             return self.getfile(key, *args, only=only)
 
     def basename(self, software, charge, mult):
-        return f'{self.name}_{software.hash(charge, mult)}', software.fileending
+        return f"{self.name}_{software.hash(charge, mult)}", software.fileending
 
     def hessian_filename(self, software, charge, mult):
         base, ending = self.basename(software, charge, mult)
-        return f'{base}_hessian.{ending}'
+        return f"{base}_hessian.{ending}"
 
     def grad_filename(self, software, charge, mult):
         base, ending = self.basename(software, charge, mult)
-        return f'{base}_grad.{ending}'
+        return f"{base}_grad.{ending}"
 
     def charge_filename(self, software, charge, mult):
         base, ending = self.basename(software, charge, mult)
-        return f'{base}_charge.{ending}'
+        return f"{base}_charge.{ending}"
 
     def scan_filename(self, software, charge, mult):
         base, ending = self.basename(software, charge, mult)
-        return f'{base}_scan.{ending}'
+        return f"{base}_scan.{ending}"
 
     def scan_sp_filename(self, software, charge, mult, i):
         base, ending = self.basename(software, charge, mult)
-        return f'{base}_sp_step_{i:02d}.{ending}'
+        return f"{base}_sp_step_{i:02d}.{ending}"
 
     def sp_filename(self, software, charge, mult):
         base, ending = self.basename(software, charge, mult)
-        return f'{base}_sp.{ending}'
+        return f"{base}_sp.{ending}"
 
     def opt_filename(self, software, charge, mult):
         base, ending = self.basename(software, charge, mult)
-        return f'{base}_opt.{ending}'
+        return f"{base}_opt.{ending}"
 
     def _path(self, path, only, **kwargs):
         """Path to the folder"""
@@ -212,10 +215,14 @@ class Pathways:
         #
         if len(args) != len(arguments):
             if len(args) > len(arguments):
-                raise TypeError(f"getdir() takes {len(arguments)} "
-                                f"positional arguments but {len(args)} were given")
+                raise TypeError(
+                    f"getdir() takes {len(arguments)} "
+                    f"positional arguments but {len(args)} were given"
+                )
             else:
-                raise TypeError(f"getdir() missing {len(arguments)} "
-                                "required positional arguments: "
-                                f"""{" and ".join(f"'arg'" for arg in arguments[len(args):])}""")
+                raise TypeError(
+                    f"getdir() missing {len(arguments)} "
+                    "required positional arguments: "
+                    f"""{" and ".join("'arg'" for arg in arguments[len(args) :])}"""
+                )
         return path, {arg: value for arg, value in zip(arguments, args)}

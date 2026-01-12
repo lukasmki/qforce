@@ -1,17 +1,18 @@
 from collections import UserDict
 from abc import ABC, abstractmethod
+
 #
 import numpy as np
+
 #
 from .storage import TermStorage, MultipleTermStorge
 from .selectors import to_selector
 
 
 class TermABC(ABC):
+    __slots__ = ("atomids", "equ", "idx", "fconst", "type", "_name")
 
-    __slots__ = ('atomids', 'equ', 'idx', 'fconst', 'type', '_name')
-
-    name = 'NOT_NAMED'
+    name = "NOT_NAMED"
 
     def __init__(self, atomids, equ, term_type, fconst=None):
         """Initialization of a term"""
@@ -98,6 +99,7 @@ class TermABC(ABC):
 
 class TermBase(TermABC):
     """Base class for terms that are TermFactories for themselves as well"""
+
     _multiple_terms = False
 
     @classmethod
@@ -159,7 +161,7 @@ class DefaultEmptyDict(UserDict):
         return all(val is EmptyTerm for val in self.data.values())
 
     def is_on(self, key):
-        return not (self[key] is EmptyTerm)
+        return self[key] is not EmptyTerm
 
     def get(self, key, default=EmptyTerm):
         return self.data.get(key, default)
@@ -170,6 +172,7 @@ class DefaultEmptyDict(UserDict):
 
 class TermFactory:
     """Base class for terms that are TermFactories for themselves as well"""
+
     _multiple_terms = True
     _term_types = None
 
@@ -182,10 +185,17 @@ class TermFactory:
     @classmethod
     def get_terms_container(cls, termtypes=None):
         if termtypes is None:
-            return MultipleTermStorge(cls.name, {key: value.get_terms_container()
-                                                 for key, value in cls._term_types.items()})
-        return MultipleTermStorge(cls.name, {key: value.get_terms_container()
-                                             for key, value in termtypes.items()})
+            return MultipleTermStorge(
+                cls.name,
+                {
+                    key: value.get_terms_container()
+                    for key, value in cls._term_types.items()
+                },
+            )
+        return MultipleTermStorge(
+            cls.name,
+            {key: value.get_terms_container() for key, value in termtypes.items()},
+        )
 
     @classmethod
     def get_terms(cls, topo, non_bonded, settings):

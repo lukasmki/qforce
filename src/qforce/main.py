@@ -1,4 +1,5 @@
 from calkeeper import CalculationKeeper, CalculationIncompleteError
+
 #
 from .initialize import initialize
 from .qm.qm import QM
@@ -7,9 +8,11 @@ from .molecule import Molecule
 from .molecule.bond_and_angle_terms import get_bond_dissociation_energies
 from .frequencies import calc_qm_vs_md_frequencies
 from .fit import multi_fit
+
 # from .charge_flux import fit_charge_flux
 from .misc import LOGO
 from .logger import LoggerExit
+
 #
 from .schemes import Computations, HessianCreator, CrestCreator
 from .schemes import DihedralCreator
@@ -18,7 +21,6 @@ from .schemes import DihedralCreator
 
 
 def runjob(config, job, ext_q=None, ext_lj=None):
-
     qm_interface = QM(job, config.qm)
     ff_interface = ForceField.implemented_md_software[config.ff.output_software]
     print()
@@ -40,9 +42,11 @@ def runjob(config, job, ext_q=None, ext_lj=None):
 
     calc_qm_vs_md_frequencies(job, hessian_out, md_hessian)
 
-    if (hessian_out.dipole_deriv is not None
-       and 'charge_flux' in mol.terms
-       and len(mol.terms['charge_flux']) > 0):
+    if (
+        hessian_out.dipole_deriv is not None
+        and "charge_flux" in mol.terms
+        and len(mol.terms["charge_flux"]) > 0
+    ):
         raise NotImplementedError("Charge flux is not updated to new syntax")
         # fit_charge_flux(main_hessian, qm_energy_out, qm_gradient_out, mol)
 
@@ -56,25 +60,27 @@ def runjob(config, job, ext_q=None, ext_lj=None):
 
 def update_morse_term(job, mol):
     bond_dissociation_energies = get_bond_dissociation_energies(job.md_data, mol)
-    for term in mol.terms['bond']:
-        if str(term).startswith('Morse'):
+    for term in mol.terms["bond"]:
+        if str(term).startswith("Morse"):
             e_dis = bond_dissociation_energies[term.atomids[0], term.atomids[1]]
-            term.equ[1] = (term.fconst /(2*e_dis))**0.5
+            term.equ[1] = (term.fconst / (2 * e_dis)) ** 0.5
 
 
 def do_hessian(qm_interface, mol):
     hessian = HessianCreator(mol)
     hessian.run(qm_interface)
     main_hessian = hessian.main_hessian()
-    mol.update_coords(main_hessian.coords, 'Structure optimized for Hessian calculation')
+    mol.update_coords(
+        main_hessian.coords, "Structure optimized for Hessian calculation"
+    )
     return main_hessian
 
 
 def do_crest(job, qm_interface, mol):
-    folder = job.pathways.getdir('preopt', create=True)
+    folder = job.pathways.getdir("preopt", create=True)
     crest = CrestCreator(folder, mol)
     crest.run(qm_interface)
-    mol.update_coords(crest.get_most_stable(), 'CREST lowest energy structure')
+    mol.update_coords(crest.get_most_stable(), "CREST lowest energy structure")
     mol.all_coords = crest.get_structures()
     mol.bond_orders = crest.get_bond_orders()
 
@@ -83,12 +89,12 @@ def do_all_structs(job, config, qm_interface, mol):
     folder = job.pathways.jobdir
 
     structs = Computations(config.addstructs, folder)
-    structs.register('dihedrals', DihedralCreator(mol, job, config))
-    structs.register('hessian', HessianCreator(mol))
+    structs.register("dihedrals", DihedralCreator(mol, job, config))
+    structs.register("hessian", HessianCreator(mol))
     # structs.register("bde", BDECreator(mol, config))
     #
-    structs.activate('fromfile')
-    structs.activate('xtbmd', mol.all_coords)
+    structs.activate("fromfile")
+    structs.activate("xtbmd", mol.all_coords)
     # do all additional calculations
     structs.run(qm_interface)
     #  register hessian after structs were run!
@@ -99,20 +105,22 @@ def do_all_structs(job, config, qm_interface, mol):
 
 
 def load_keeper(job):
-    file = job.pathways['calculations.json']
+    file = job.pathways["calculations.json"]
     if file.exists():
-        with open(file, 'r') as fh:
+        with open(file, "r") as fh:
             keeper = CalculationKeeper.from_json(fh.read())
         return keeper
     raise SystemExit(f"No calculation for '{job.dir}'")
 
 
 def write_bashscript(filename, config, job):
-    methods = {name: calculator.as_string for name, calculator in job.calculators.items()}
+    methods = {
+        name: calculator.as_string for name, calculator in job.calculators.items()
+    }
     ncores = config.qm.n_proc
     keeper = load_keeper(job)
 
-    with open(filename, 'w') as fh:
+    with open(filename, "w") as fh:
         fh.write("current=$PWD\n")
         for calc in keeper.get_incomplete():
             call = methods.get(calc.software, None)
@@ -122,11 +130,11 @@ def write_bashscript(filename, config, job):
 
 
 def save_jobs(config, job):
-    with open(job.pathways['calculations.json'], 'w') as fh:
+    with open(job.pathways["calculations.json"], "w") as fh:
         fh.write(job.calkeeper.as_json())
 
     if config.logging.write_bash is True:
-        write_bashscript(f'run_{job.name}_qforce.sh', config, job)
+        write_bashscript(f"run_{job.name}_qforce.sh", config, job)
 
 
 def runspjob(config, job, ext_q=None, ext_lj=None):
@@ -148,8 +156,10 @@ def runspjob(config, job, ext_q=None, ext_lj=None):
     return None
 
 
-def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None, err=False):
-    """Execute Qforce from python directly """
+def run_qforce(
+    input_arg, ext_q=None, ext_lj=None, config=None, presets=None, err=False
+):
+    """Execute Qforce from python directly"""
     config, job = initialize(input_arg, config, presets)
     #
     mol = None
@@ -164,9 +174,15 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None, er
 
 
 def print_outcome(logger, job_dir, output_software):
-    logger.info(f'Output files can be found in the directory: {job_dir}.')
-    logger.info(f'- Q-Force force field parameters in {output_software.upper()} format.')
-    logger.info('- QM vs MM vibrational frequencies, pre-dihedral fitting (frequencies.txt,'
-                ' frequencies.pdf).')
-    logger.info('- Vibrational modes which can be visualized in VMD (frequencies.nmd).')
-    logger.info('- QM vs MM dihedral profiles (if any) in "fragments" folder as ".pdf" files.\n')
+    logger.info(f"Output files can be found in the directory: {job_dir}.")
+    logger.info(
+        f"- Q-Force force field parameters in {output_software.upper()} format."
+    )
+    logger.info(
+        "- QM vs MM vibrational frequencies, pre-dihedral fitting (frequencies.txt,"
+        " frequencies.pdf)."
+    )
+    logger.info("- Vibrational modes which can be visualized in VMD (frequencies.nmd).")
+    logger.info(
+        '- QM vs MM dihedral profiles (if any) in "fragments" folder as ".pdf" files.\n'
+    )

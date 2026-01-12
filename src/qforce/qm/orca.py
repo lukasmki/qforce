@@ -1,6 +1,5 @@
 import os.path
 import re
-import subprocess
 
 import numpy as np
 from ase.units import Hartree, mol, kJ, Bohr
@@ -13,7 +12,6 @@ from ..elements import ATOM_SYM
 
 
 class Orca(QMInterface):
-
     name = "orca"
     has_torsiondrive = False
 
@@ -45,7 +43,6 @@ class Orca(QMInterface):
 
 
 class OrcaCalculator(Calculator):
-
     name = "orca"
     _user_input = """
     # name of the orca executable
@@ -64,7 +61,6 @@ class OrcaCalculator(Calculator):
 
 
 class WriteORCA(WriteABC):
-
     def opt(self, file, job_name, settings, coords, atnums):
         self._write_coordinates_and_defaults(file, settings, atnums, coords)
         file.write(f"! opt {self.config.method} {self.config.basis} ")
@@ -226,9 +222,7 @@ class WriteORCA(WriteABC):
         n_steps = int(np.ceil(360 / step_size))
         file.write("%geom Scan\n")
         file.write(
-            f"D {a1} {a2} {a3} {a4} = {start_angle:.2f},"
-            f" {end_angle:.2f},"
-            f" {n_steps}\n"
+            f"D {a1} {a2} {a3} {a4} = {start_angle:.2f}, {end_angle:.2f}, {n_steps}\n"
         )
         file.write("end\n")
         file.write("end\n")
@@ -268,12 +262,11 @@ class WriteORCA(WriteABC):
         for atnum, coord in zip(atnums, coords):
             elem = ATOM_SYM[atnum]
             file.write(
-                f"{elem :>3s} {coord[0]:>12.6f} {coord[1]:>12.6f} {coord[2]:>12.6f}\n"
+                f"{elem:>3s} {coord[0]:>12.6f} {coord[1]:>12.6f} {coord[2]:>12.6f}\n"
             )
 
 
 class ReadORCA(ReadABC):
-
     # TODO: Check if pc_file is always present, or only in special cases?
     hessian_files = {
         "out_file": ["${base}.out", "${base}.log"],

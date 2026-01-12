@@ -82,7 +82,7 @@ def _get_job_info(filename):
         job["coord_file"] = False
         job["name"] = base.split("_qforce")[0]
 
-    job["dir"] = f'{path}{job["name"]}_qforce'
+    job["dir"] = f"{path}{job['name']}_qforce"
     pathways = Pathways(job["dir"], name=job["name"])
     job["pathways"] = pathways
     #

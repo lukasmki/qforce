@@ -1,6 +1,8 @@
 import os
+
 #
 import numpy as np
+
 #
 from .creator import CustomStructureCreator
 from .xtbmd import XTBMolecularDynamics
@@ -8,7 +10,6 @@ from .additionalstructures import StructuresFromFile
 
 
 class Computations_(CustomStructureCreator):
-
     _user_input = """
     energy_element_weights = 15000 :: float
     gradient_element_weights = 100 :: float
@@ -19,12 +20,20 @@ class Computations_(CustomStructureCreator):
     """
 
     classes = {
-            'xtbmd': XTBMolecularDynamics,
-            'fromfile': StructuresFromFile,
+        "xtbmd": XTBMolecularDynamics,
+        "fromfile": StructuresFromFile,
     }
 
-    def __init__(self, folder, energy_ele_weight, gradient_ele_weight, hessian_ele_weight,
-                 hessian_weight, dihedral_weight, activatable=None):
+    def __init__(
+        self,
+        folder,
+        energy_ele_weight,
+        gradient_ele_weight,
+        hessian_ele_weight,
+        hessian_weight,
+        dihedral_weight,
+        activatable=None,
+    ):
         self.folder = folder
         self.creators = {}
         self.energy_weight = energy_ele_weight
@@ -44,9 +53,15 @@ class Computations_(CustomStructureCreator):
         for name, cls_ in cls.classes.items():
             settings = getattr(config, name)
             activatable[name] = (cls_, settings)
-        return cls(folder, config.energy_element_weights,
-                   config.gradient_element_weights, config.hessian_element_weights,
-                   config.hessian_weight, config.dihedral_weight, activatable=activatable)
+        return cls(
+            folder,
+            config.energy_element_weights,
+            config.gradient_element_weights,
+            config.hessian_element_weights,
+            config.hessian_weight,
+            config.dihedral_weight,
+            activatable=activatable,
+        )
 
     @classmethod
     def _extend_user_input(cls, questions):
@@ -57,34 +72,36 @@ class Computations_(CustomStructureCreator):
         cls, settings = self._activatable.get(name, (None, None))
         if cls is None:
             raise ValueError(f"Class '{name}' is not activatable")
-        folder = self.folder / f'{name}'
+        folder = self.folder / f"{name}"
         creator = cls.from_config(settings, folder, *args, **kwargs)
         if creator is not None:
             self.register(name, creator)
 
     def add_hessians(self, hessout):
         """add hessian"""
-        self.creators['hessian'] = HessianOutput(self._hessian_weight, hessout)
+        self.creators["hessian"] = HessianOutput(self._hessian_weight, hessout)
 
     def add_dihedrals(self, scans):
         """add computed dihedrals"""
-        self.creators['dihedrals'] = DihedralOutput(self._dihedral_weight, scans)
+        self.creators["dihedrals"] = DihedralOutput(self._dihedral_weight, scans)
 
     def register(self, name, creator):
         """add a new creator"""
         if not isinstance(creator, CustomStructureCreator):
-            raise ValueError(f"Can not register '{type(creator)}' "
-                             "only register CustomStructureCreator instances")
-        if name == 'dihedrals':
+            raise ValueError(
+                f"Can not register '{type(creator)}' "
+                "only register CustomStructureCreator instances"
+            )
+        if name == "dihedrals":
             creator.weight = self._dihedral_weight
-        elif name == 'hessian':
+        elif name == "hessian":
             creator.weight = self._hessian_weight
         self.creators[name] = creator
 
     def setup_pre(self, qm):
         #
         for i, (name, creator) in enumerate(self.creators.items()):
-            folder = self.folder / f'{name}'
+            folder = self.folder / f"{name}"
             os.makedirs(folder, exist_ok=True)
             creator.folder = folder
 
@@ -168,7 +185,7 @@ class Computations_(CustomStructureCreator):
             for out in creator.enouts():
                 yield weight, out
 
-    def graditr(self, select='all'):
+    def graditr(self, select="all"):
         for creator in self.creators.values():
             weight = creator.weight * self.gradient_weight
             for out in creator.gradouts(select=select):
@@ -182,7 +199,6 @@ class Computations_(CustomStructureCreator):
 
 
 class HessianOutput(CustomStructureCreator):
-
     def __init__(self, weight, hessout):
         super().__init__(weight)
         if not isinstance(hessout, (tuple, list)):
@@ -209,7 +225,6 @@ class HessianOutput(CustomStructureCreator):
 
 
 class DihedralOutput(CustomStructureCreator):
-
     def __init__(self, weight, gradouts):
         super().__init__(weight)
         self._gradouts = gradouts

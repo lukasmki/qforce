@@ -1,5 +1,4 @@
 import pytest
-import os
 
 #
 from qforce_examples import Gaussian_default
@@ -20,9 +19,7 @@ def test_BatchRun(batch_run, exist, tmpdir):
         """[scan]
 batch_run = {}
 frag_lib = {}/qforce_fragments
-    """.format(
-            batch_run, tmpdir
-        )
+    """.format(batch_run, tmpdir)
     )
     tmpdir.join("propane.xyz").mksymlinkto(Gaussian_default["xyz_file"])
     # first run setup calculation

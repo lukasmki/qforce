@@ -1,6 +1,8 @@
 import numpy as np
+
 #
 from colt import Colt
+
 #
 from .gromacs import Gromacs
 from .openmm import OpenMM
@@ -9,11 +11,11 @@ from ..elements import ATOM_SYM, ATOMMASS
 
 
 class ForceField(Colt):
-
-    implemented_md_software = {'gromacs': Gromacs,
-                               'openmm': OpenMM,
-                               'mchem': MChem,
-                               }
+    implemented_md_software = {
+        "gromacs": Gromacs,
+        "openmm": OpenMM,
+        "mchem": MChem,
+    }
 
     _user_input = """
 # MD software to print the final results in
@@ -115,13 +117,13 @@ res_name = MOL :: str
         exclusions = [[] for _ in range(self.n_atoms)]
 
         # input exclusions  for exclusions if outside of n_excl
-        for a1, a2 in non_bonded.exclusions+non_bonded.pairs:
-            if all([a2 not in neighbors[i][a1] for i in range(self.n_excl+1)]):
-                exclusions[a1].append(a2+1)
+        for a1, a2 in non_bonded.exclusions + non_bonded.pairs:
+            if all([a2 not in neighbors[i][a1] for i in range(self.n_excl + 1)]):
+                exclusions[a1].append(a2 + 1)
 
         # fragment capping atom exclusions
         for i in exclude_all:
-            exclusions[i].extend(np.arange(1, self.n_atoms+1))
+            exclusions[i].extend(np.arange(1, self.n_atoms + 1))
 
         return exclusions
 
@@ -137,6 +139,5 @@ res_name = MOL :: str
                 atom_dict[sym] = 1
             else:
                 atom_dict[sym] += 1
-            atom_names.append(f'{sym}{atom_dict[sym]}')
+            atom_names.append(f"{sym}{atom_dict[sym]}")
         return atom_names, np.array(symbols)
-

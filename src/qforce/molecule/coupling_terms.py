@@ -1,17 +1,26 @@
 import numpy as np
 from itertools import product
+
 #
 from .baseterms import TermBase
 from ..forces import get_dist, get_angle, get_dihed
-from ..forces import (calc_cross_bond_bond, calc_cross_bond_angle, calc_cross_bond_cos_angle, calc_cross_angle_angle,
-                      calc_cross_cos_angle_angle, calc_cross_dihed_angle, calc_cross_dihed_bond,
-                      calc_cross_cos_cube_dihed_angle, calc_cross_cos_cube_dihed_bond,
-                      calc_cross_dihed_angle_angle, calc_cross_cos_cube_dihed_angle_angle)
+from ..forces import (
+    calc_cross_bond_bond,
+    calc_cross_bond_angle,
+    calc_cross_bond_cos_angle,
+    calc_cross_angle_angle,
+    calc_cross_cos_angle_angle,
+    calc_cross_dihed_angle,
+    calc_cross_dihed_bond,
+    calc_cross_cos_cube_dihed_angle,
+    calc_cross_cos_cube_dihed_bond,
+    calc_cross_dihed_angle_angle,
+    calc_cross_cos_cube_dihed_angle_angle,
+)
 
 
 class CrossBondBondTerm(TermBase):
-
-    name = 'CrossBondBondTerm'
+    name = "CrossBondBondTerm"
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_bond_bond(crd, self.atomids, self.equ, fconst, force)
@@ -33,13 +42,11 @@ class CrossBondBondTerm(TermBase):
 
     @classmethod
     def _get_terms(cls, topo, non_bonded):
-
         cross_bond_bond_terms = cls.get_terms_container()
 
         z = 0
         for a1, a2 in topo.bonds:
             for a3, a4 in topo.bonds:
-
                 if a1 >= a3 and a2 >= a4:
                     continue
 
@@ -53,11 +60,11 @@ class CrossBondBondTerm(TermBase):
                 if n_shared == 0:
                     continue
 
-                b21 = topo.edge(a2, a1)['vers']
+                b21 = topo.edge(a2, a1)["vers"]
                 b_type1 = sorted([topo.types[a1], topo.types[a2]])
                 b_type1 = f"{b_type1[0]}({b21}){b_type1[1]}"
 
-                b43 = topo.edge(a4, a3)['vers']
+                b43 = topo.edge(a4, a3)["vers"]
                 b_type2 = sorted([topo.types[a3], topo.types[a4]])
                 b_type2 = f"{b_type2[0]}({b43}){b_type2[1]}"
 
@@ -76,7 +83,7 @@ class CrossBondBondTerm(TermBase):
 
 
 class CrossBondAngleTerm(TermBase):
-    name = 'CrossBondAngleTerm'
+    name = "CrossBondAngleTerm"
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_bond_angle(crd, self.atomids, self.equ, fconst, force)
@@ -98,7 +105,6 @@ class CrossBondAngleTerm(TermBase):
 
     @classmethod
     def _get_terms(cls, topo, non_bonded):
-
         cross_bond_angle_terms = cls.get_terms_container()
 
         for a1, a2, a3 in topo.angles:
@@ -108,14 +114,13 @@ class CrossBondAngleTerm(TermBase):
             #                        not topo.edge(a2, a3)['in_ring3']):
 
             for a4, a5 in topo.bonds:
-
                 dist = get_dist(topo.coords[a4], topo.coords[a5])[1]
 
                 equ = np.array([theta, dist])
 
-                b21 = topo.edge(a2, a1)['vers']
-                b23 = topo.edge(a2, a3)['vers']
-                b45 = topo.edge(a4, a5)['vers']
+                b21 = topo.edge(a2, a1)["vers"]
+                b23 = topo.edge(a2, a3)["vers"]
+                b45 = topo.edge(a4, a5)["vers"]
 
                 if sum([a4 in [a1, a2, a3], a5 in [a1, a2, a3]]) < 1:
                     continue
@@ -127,13 +132,17 @@ class CrossBondAngleTerm(TermBase):
                 if n_shared == 1 and not topo.ba_couple_1_shared:
                     continue
 
-                a_type = sorted([f"{topo.types[a2]}({b21}){topo.types[a1]}",
-                                 f"{topo.types[a2]}({b23}){topo.types[a3]}"])
+                a_type = sorted(
+                    [
+                        f"{topo.types[a2]}({b21}){topo.types[a1]}",
+                        f"{topo.types[a2]}({b23}){topo.types[a3]}",
+                    ]
+                )
                 a_type = f"{a_type[0]}_{a_type[1]}"
                 b_type = sorted([topo.types[a4], topo.types[a5]])
                 b_type = f"{b_type[0]}({b45}){b_type[1]}"
 
-                ba_type = f'{a_type}-{b_type}-{n_shared}-{is_angle_centered}'
+                ba_type = f"{a_type}-{b_type}-{n_shared}-{is_angle_centered}"
 
                 cross_bond_angle_terms.append(cls([a1, a2, a3, a4, a5], equ, ba_type))
 
@@ -145,8 +154,9 @@ class CrossBondAngleTerm(TermBase):
     def write_ff_header(self, software, writer):
         return software.write_cross_bond_angle_header(writer)
 
+
 class CrossBondCosineAngleTerm(CrossBondAngleTerm):
-    name = 'CrossBondCosineAngleTerm'
+    name = "CrossBondCosineAngleTerm"
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_bond_cos_angle(crd, self.atomids, self.equ, fconst, force)
@@ -174,7 +184,7 @@ class CrossBondCosineAngleTerm(CrossBondAngleTerm):
 
 
 class CrossAngleAngleTerm(TermBase):
-    name = 'CrossAngleAngleTerm'
+    name = "CrossAngleAngleTerm"
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_angle_angle(crd, self.atomids, self.equ, fconst, force)
@@ -196,7 +206,6 @@ class CrossAngleAngleTerm(TermBase):
 
     @classmethod
     def _get_terms(cls, topo, non_bonded):
-
         cross_angle_angle_terms = cls.get_terms_container()
 
         for i, (a1, a2, a3) in enumerate(topo.angles):
@@ -206,7 +215,6 @@ class CrossAngleAngleTerm(TermBase):
             #                        not topo.edge(a2, a3)['in_ring3']):
 
             for j, (a4, a5, a6) in enumerate(topo.angles):
-
                 # if a4 != a2 and a6 != a2:
                 #     continue
 
@@ -228,7 +236,9 @@ class CrossAngleAngleTerm(TermBase):
                 # if sum([a1 == a5, a3 == a5, a4 == a2, a6 == a2]) != 2:
                 #     continue
 
-                n_shared = sum([a1 in [a4, a5, a6], a2 in [a4, a5, a6], a3 in [a4, a5, a6]])
+                n_shared = sum(
+                    [a1 in [a4, a5, a6], a2 in [a4, a5, a6], a3 in [a4, a5, a6]]
+                )
                 n_matched = sum([a1 == a4 or a1 == a6, a2 == a5, a3 == a6 or a3 == a4])
                 # For methane
                 # if n_shared == 0:
@@ -243,22 +253,32 @@ class CrossAngleAngleTerm(TermBase):
                 theta2 = get_angle(topo.coords[[a4, a5, a6]])[0]
                 equ = np.array([theta1, theta2])
 
-                b1_21 = topo.edge(a2, a1)['vers']
-                b1_23 = topo.edge(a2, a3)['vers']
-                a1_type = sorted([f"{topo.types[a2]}({b1_21}){topo.types[a1]}",
-                                  f"{topo.types[a2]}({b1_23}){topo.types[a3]}"])
+                b1_21 = topo.edge(a2, a1)["vers"]
+                b1_23 = topo.edge(a2, a3)["vers"]
+                a1_type = sorted(
+                    [
+                        f"{topo.types[a2]}({b1_21}){topo.types[a1]}",
+                        f"{topo.types[a2]}({b1_23}){topo.types[a3]}",
+                    ]
+                )
                 a1_type = f"{a1_type[0]}_{a1_type[1]}"
 
-                b2_21 = topo.edge(a5, a4)['vers']
-                b2_23 = topo.edge(a5, a6)['vers']
-                a2_type = sorted([f"{topo.types[a5]}({b2_21}){topo.types[a4]}",
-                                  f"{topo.types[a5]}({b2_23}){topo.types[a6]}"])
+                b2_21 = topo.edge(a5, a4)["vers"]
+                b2_23 = topo.edge(a5, a6)["vers"]
+                a2_type = sorted(
+                    [
+                        f"{topo.types[a5]}({b2_21}){topo.types[a4]}",
+                        f"{topo.types[a5]}({b2_23}){topo.types[a6]}",
+                    ]
+                )
                 a2_type = f"{a2_type[0]}_{a2_type[1]}"
 
                 aa_type = sorted([a1_type, a2_type])
                 aa_type = f"{aa_type[0]}-{aa_type[1]}-{n_shared}-{n_matched}"
 
-                cross_angle_angle_terms.append(cls([a1, a2, a3, a4, a5, a6], equ, aa_type))
+                cross_angle_angle_terms.append(
+                    cls([a1, a2, a3, a4, a5, a6], equ, aa_type)
+                )
 
         return cross_angle_angle_terms
 
@@ -270,7 +290,7 @@ class CrossAngleAngleTerm(TermBase):
 
 
 class CrossCosineAngleAngleTerm(CrossAngleAngleTerm):
-    name = 'CrossCosineAngleAngleTerm'
+    name = "CrossCosineAngleAngleTerm"
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_cos_angle_angle(crd, self.atomids, self.equ, fconst, force)
@@ -282,7 +302,7 @@ class CrossCosineAngleAngleTerm(CrossAngleAngleTerm):
 
     def update_constants(self, dct):
         """update constants for the class"""
-        a1, a2  = self.constants()
+        a1, a2 = self.constants()
         a1 = dct.get(a1, None)
         if a1 is not None:
             self.equ[0] = a1
@@ -298,7 +318,7 @@ class CrossCosineAngleAngleTerm(CrossAngleAngleTerm):
 
 
 class CrossDihedBondTerm(TermBase):
-    name = 'CrossDihedBondTerm'
+    name = "CrossDihedBondTerm"
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_dihed_bond(crd, self.atomids, self.equ, fconst, force)
@@ -312,7 +332,7 @@ class CrossDihedBondTerm(TermBase):
         """update constants for the class"""
         # do not know if the torsion is updated or not???
         # currently its not
-        t1, b1  = self.constants()
+        t1, b1 = self.constants()
         # update only bond term
         b1 = dct.get(a1, None)
         if b1 is not None:
@@ -320,7 +340,6 @@ class CrossDihedBondTerm(TermBase):
 
     @classmethod
     def _get_terms(cls, topo, non_bonded):
-
         cross_dihed_bond_terms = cls.get_terms_container()
 
         for a2, a3 in topo.bonds:
@@ -332,19 +351,32 @@ class CrossDihedBondTerm(TermBase):
                 continue
 
             a1s, a4s = np.array(a1s), np.array(a4s)
-            atoms_comb = [list(d) for d in product(a1s, [a2], [a3],
-                          a4s) if d[0] != d[-1]]
+            atoms_comb = [
+                list(d) for d in product(a1s, [a2], [a3], a4s) if d[0] != d[-1]
+            ]
 
             # rigid
             for atoms in atoms_comb:
                 is_rigid = False
-                if (central['order'] >= 1.75 or central["in_ring3"]  # double bond or 3-member ring
-                        or (central['in_ring'] and central['order'] >= 1.25)  # in ring and conjugated
-                        or (all([topo.node(a)['n_ring'] > 1 for a in [a2, a3]]) and  # in many rings
-                            any([topo.node(a)['n_ring'] > 1 for a in a1s]) and
-                            any([topo.node(a)['n_ring'] > 1 for a in a4s]))
-                        or (central['in_ring'] and check_if_in_a_fully_planar_ring(topo, a2, a3))
-                        or topo.all_rigid):
+                if (
+                    central["order"] >= 1.75
+                    or central["in_ring3"]  # double bond or 3-member ring
+                    or (
+                        central["in_ring"] and central["order"] >= 1.25
+                    )  # in ring and conjugated
+                    or (
+                        all(
+                            [topo.node(a)["n_ring"] > 1 for a in [a2, a3]]
+                        )  # in many rings
+                        and any([topo.node(a)["n_ring"] > 1 for a in a1s])
+                        and any([topo.node(a)["n_ring"] > 1 for a in a4s])
+                    )
+                    or (
+                        central["in_ring"]
+                        and check_if_in_a_fully_planar_ring(topo, a2, a3)
+                    )
+                    or topo.all_rigid
+                ):
                     is_rigid = True
 
                 a1, a2, a3, a4 = atoms
@@ -366,12 +398,12 @@ class CrossDihedBondTerm(TermBase):
                     dist = get_dist(topo.coords[a5], topo.coords[a6])[1]
 
                     b_type = sorted([topo.types[a5], topo.types[a6]])
-                    b56 = topo.edge(a5, a6)['vers']
+                    b56 = topo.edge(a5, a6)["vers"]
                     b_type = f"{b_type[0]}({b56}){b_type[1]}"
 
                     n_shared = sum([a5 in atoms, a6 in atoms])
 
-                    connect = ''
+                    connect = ""
                     if n_shared < 1:
                         continue
                     elif n_shared == 1 and topo.types[a1] != topo.types[a4]:
@@ -380,17 +412,37 @@ class CrossDihedBondTerm(TermBase):
                         elif a6 in atoms:
                             connection = atoms.index(a6)
 
-                        connect = f'-asym_{connection}'
+                        connect = f"-asym_{connection}"
 
-                    db_type = f'{d_type}-{b_type}-{n_shared}{connect}'
+                    db_type = f"{d_type}-{b_type}-{n_shared}{connect}"
 
                     if is_rigid:
-                        cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], [dist, 2, np.pi], f'{db_type}'))
+                        cross_dihed_bond_terms.append(
+                            cls(
+                                [a1, a2, a3, a4, a5, a6], [dist, 2, np.pi], f"{db_type}"
+                            )
+                        )
                     else:
-                        cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], [dist, 4, np.pi], f'{db_type}-4'))
-                        cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], [dist, 3, 0], f'{db_type}-3'))
-                        cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], [dist, 2, np.pi], f'{db_type}-2'))
-                        cross_dihed_bond_terms.append(cls([a1, a2, a3, a4, a5, a6], [dist, 1, 0], f'{db_type}-1'))
+                        cross_dihed_bond_terms.append(
+                            cls(
+                                [a1, a2, a3, a4, a5, a6],
+                                [dist, 4, np.pi],
+                                f"{db_type}-4",
+                            )
+                        )
+                        cross_dihed_bond_terms.append(
+                            cls([a1, a2, a3, a4, a5, a6], [dist, 3, 0], f"{db_type}-3")
+                        )
+                        cross_dihed_bond_terms.append(
+                            cls(
+                                [a1, a2, a3, a4, a5, a6],
+                                [dist, 2, np.pi],
+                                f"{db_type}-2",
+                            )
+                        )
+                        cross_dihed_bond_terms.append(
+                            cls([a1, a2, a3, a4, a5, a6], [dist, 1, 0], f"{db_type}-1")
+                        )
         return cross_dihed_bond_terms
 
     def write_forcefield(self, software, writer):
@@ -401,10 +453,12 @@ class CrossDihedBondTerm(TermBase):
 
 
 class CrossCosCubeDihedBondTerm(CrossDihedBondTerm):
-    name = 'CrossCosCubeDihedBondTerm'
+    name = "CrossCosCubeDihedBondTerm"
 
     def _calc_forces(self, crd, force, fconst):
-        return calc_cross_cos_cube_dihed_bond(crd, self.atomids, self.equ, fconst, force)
+        return calc_cross_cos_cube_dihed_bond(
+            crd, self.atomids, self.equ, fconst, force
+        )
 
     def constants(self):
         """return constants for the class should return a list of names of the constants used in the class"""
@@ -413,7 +467,7 @@ class CrossCosCubeDihedBondTerm(CrossDihedBondTerm):
 
     def update_constants(self, dct):
         """update constants for the class"""
-        t1, b1  = self.constants()
+        t1, b1 = self.constants()
         b1 = dct.get(b1, None)
         if b1 is not None:
             self.equ[0] = b1
@@ -427,7 +481,7 @@ class CrossCosCubeDihedBondTerm(CrossDihedBondTerm):
 
 
 class CrossDihedAngleTerm(TermBase):
-    name = 'CrossDihedAngleTerm'
+    name = "CrossDihedAngleTerm"
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_dihed_angle(crd, self.atomids, self.equ, fconst, force)
@@ -439,7 +493,7 @@ class CrossDihedAngleTerm(TermBase):
 
     def update_constants(self, dct):
         """update constants for the class"""
-        t1, a1  = self.constants()
+        t1, a1 = self.constants()
         a1 = dct.get(a1, None)
         if a1 is not None:
             self.equ[0] = a1
@@ -447,7 +501,6 @@ class CrossDihedAngleTerm(TermBase):
 
     @classmethod
     def _get_terms(cls, topo, non_bonded):
-
         cross_dihed_angle_terms = cls.get_terms_container()
 
         for a2, a3 in topo.bonds:
@@ -459,18 +512,31 @@ class CrossDihedAngleTerm(TermBase):
                 continue
 
             a1s, a4s = np.array(a1s), np.array(a4s)
-            atoms_comb = [list(d) for d in product(a1s, [a2], [a3],
-                          a4s) if d[0] != d[-1]]
+            atoms_comb = [
+                list(d) for d in product(a1s, [a2], [a3], a4s) if d[0] != d[-1]
+            ]
 
             for atoms in atoms_comb:
                 is_rigid = False
-                if (central['order'] >= 1.75 or central["in_ring3"]  # double bond or 3-member ring
-                        or (central['in_ring'] and central['order'] >= 1.25)  # in ring and conjugated
-                        or (all([topo.node(a)['n_ring'] > 1 for a in [a2, a3]]) and  # in many rings
-                            any([topo.node(a)['n_ring'] > 1 for a in a1s]) and
-                            any([topo.node(a)['n_ring'] > 1 for a in a4s]))
-                        or (central['in_ring'] and check_if_in_a_fully_planar_ring(topo, a2, a3))
-                        or topo.all_rigid):
+                if (
+                    central["order"] >= 1.75
+                    or central["in_ring3"]  # double bond or 3-member ring
+                    or (
+                        central["in_ring"] and central["order"] >= 1.25
+                    )  # in ring and conjugated
+                    or (
+                        all(
+                            [topo.node(a)["n_ring"] > 1 for a in [a2, a3]]
+                        )  # in many rings
+                        and any([topo.node(a)["n_ring"] > 1 for a in a1s])
+                        and any([topo.node(a)["n_ring"] > 1 for a in a4s])
+                    )
+                    or (
+                        central["in_ring"]
+                        and check_if_in_a_fully_planar_ring(topo, a2, a3)
+                    )
+                    or topo.all_rigid
+                ):
                     is_rigid = True
 
                 a1, a2, a3, a4 = atoms
@@ -485,31 +551,65 @@ class CrossDihedAngleTerm(TermBase):
                 d_type = f"{d_type[0]}_{t23[0]}({b23}){t23[1]}_{d_type[1]}"
 
                 for a5, a6, a7 in topo.angles:
-                    b21 = topo.edge(a6, a5)['vers']
-                    b23 = topo.edge(a6, a7)['vers']
-                    a_type = sorted([f"{topo.types[a6]}({b21}){topo.types[a5]}",
-                                     f"{topo.types[a6]}({b23}){topo.types[a7]}"])
+                    b21 = topo.edge(a6, a5)["vers"]
+                    b23 = topo.edge(a6, a7)["vers"]
+                    a_type = sorted(
+                        [
+                            f"{topo.types[a6]}({b21}){topo.types[a5]}",
+                            f"{topo.types[a6]}({b23}){topo.types[a7]}",
+                        ]
+                    )
                     a_type = f"{a_type[0]}_{a_type[1]}"
 
                     theta = get_angle(topo.coords[[a5, a6, a7]])[0]
                     n_shared = sum([a5 in atoms, a6 in atoms, a7 in atoms])
 
-                    connect = ''
+                    connect = ""
                     if n_shared < 2:
                         continue
                     elif n_shared == 2 and topo.types[a1] != topo.types[a4]:
                         if a6 in atoms:
-                            connect += f'-center:{atoms.index(a6)}'
+                            connect += f"-center:{atoms.index(a6)}"
 
-                    da_type = f'{d_type}-{a_type}-{n_shared}-{connect}'
+                    da_type = f"{d_type}-{a_type}-{n_shared}-{connect}"
 
                     if is_rigid:
-                        cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6, a7], [theta, 2, np.pi], f'{da_type}'))
+                        cross_dihed_angle_terms.append(
+                            cls(
+                                [a1, a2, a3, a4, a5, a6, a7],
+                                [theta, 2, np.pi],
+                                f"{da_type}",
+                            )
+                        )
                     else:
-                        cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6, a7], [theta, 4, np.pi], f'{da_type}-4'))
-                        cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6, a7], [theta, 3, 0], f'{da_type}-3'))
-                        cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6, a7], [theta, 2, np.pi], f'{da_type}-2'))
-                        cross_dihed_angle_terms.append(cls([a1, a2, a3, a4, a5, a6, a7], [theta, 1, 0], f'{da_type}-1'))
+                        cross_dihed_angle_terms.append(
+                            cls(
+                                [a1, a2, a3, a4, a5, a6, a7],
+                                [theta, 4, np.pi],
+                                f"{da_type}-4",
+                            )
+                        )
+                        cross_dihed_angle_terms.append(
+                            cls(
+                                [a1, a2, a3, a4, a5, a6, a7],
+                                [theta, 3, 0],
+                                f"{da_type}-3",
+                            )
+                        )
+                        cross_dihed_angle_terms.append(
+                            cls(
+                                [a1, a2, a3, a4, a5, a6, a7],
+                                [theta, 2, np.pi],
+                                f"{da_type}-2",
+                            )
+                        )
+                        cross_dihed_angle_terms.append(
+                            cls(
+                                [a1, a2, a3, a4, a5, a6, a7],
+                                [theta, 1, 0],
+                                f"{da_type}-1",
+                            )
+                        )
 
         return cross_dihed_angle_terms
 
@@ -521,10 +621,12 @@ class CrossDihedAngleTerm(TermBase):
 
 
 class CrossCosCubeDihedAngleTerm(CrossDihedAngleTerm):
-    name = 'CrossCosCubeDihedAngleTerm'
+    name = "CrossCosCubeDihedAngleTerm"
 
     def _calc_forces(self, crd, force, fconst):
-        return calc_cross_cos_cube_dihed_angle(crd, self.atomids, self.equ, fconst, force)
+        return calc_cross_cos_cube_dihed_angle(
+            crd, self.atomids, self.equ, fconst, force
+        )
 
     def constants(self):
         """return constants for the class should return a list of names of the constants used in the class"""
@@ -533,7 +635,7 @@ class CrossCosCubeDihedAngleTerm(CrossDihedAngleTerm):
 
     def update_constants(self, dct):
         """update constants for the class"""
-        t1, a1  = self.constants()
+        t1, a1 = self.constants()
         # torsion is also in this case not updated!
         a1 = dct.get(a1, None)
         if a1 is not None:
@@ -547,7 +649,7 @@ class CrossCosCubeDihedAngleTerm(CrossDihedAngleTerm):
 
 
 class CrossDihedAngleAngleTerm(TermBase):
-    name = 'CrossDihedAngleAngleTerm'
+    name = "CrossDihedAngleAngleTerm"
 
     def _calc_forces(self, crd, force, fconst):
         return calc_cross_dihed_angle_angle(crd, self.atomids, self.equ, fconst, force)
@@ -559,7 +661,7 @@ class CrossDihedAngleAngleTerm(TermBase):
 
     def update_constants(self, dct):
         """update constants for the class"""
-        a1, a2  = self.constants()
+        a1, a2 = self.constants()
         a1 = dct.get(a1, None)
         if a1 is not None:
             self.equ[0] = a1
@@ -569,7 +671,6 @@ class CrossDihedAngleAngleTerm(TermBase):
 
     @classmethod
     def _get_terms(cls, topo, non_bonded):
-
         cross_dihed_angle_angle_terms = cls.get_terms_container()
 
         for a2, a3 in topo.bonds:
@@ -581,8 +682,9 @@ class CrossDihedAngleAngleTerm(TermBase):
                 continue
 
             a1s, a4s = np.array(a1s), np.array(a4s)
-            atoms_comb = [list(d) for d in product(a1s, [a2], [a3],
-                          a4s) if d[0] != d[-1]]
+            atoms_comb = [
+                list(d) for d in product(a1s, [a2], [a3], a4s) if d[0] != d[-1]
+            ]
 
             for atoms in atoms_comb:
                 a1, a2, a3, a4 = atoms
@@ -598,7 +700,9 @@ class CrossDihedAngleAngleTerm(TermBase):
                 theta1 = get_angle(topo.coords[[a1, a2, a3]])[0]
                 theta2 = get_angle(topo.coords[[a2, a3, a4]])[0]
 
-                cross_dihed_angle_angle_terms.append(cls([a1, a2, a3, a4], [theta1, theta2, 1, 0], d_type))
+                cross_dihed_angle_angle_terms.append(
+                    cls([a1, a2, a3, a4], [theta1, theta2, 1, 0], d_type)
+                )
 
         return cross_dihed_angle_angle_terms
 
@@ -610,10 +714,12 @@ class CrossDihedAngleAngleTerm(TermBase):
 
 
 class CrossCosCubeDihedAngleAngleTerm(CrossDihedAngleAngleTerm):
-    name = 'CrossCosCubeDihedAngleAngleTerm'
+    name = "CrossCosCubeDihedAngleAngleTerm"
 
     def _calc_forces(self, crd, force, fconst):
-        return calc_cross_cos_cube_dihed_angle_angle(crd, self.atomids, self.equ, fconst, force)
+        return calc_cross_cos_cube_dihed_angle_angle(
+            crd, self.atomids, self.equ, fconst, force
+        )
 
     def constants(self):
         """return constants for the class should return a list of names of the constants used in the class"""
@@ -622,7 +728,7 @@ class CrossCosCubeDihedAngleAngleTerm(CrossDihedAngleAngleTerm):
 
     def update_constants(self, dct):
         """update constants for the class"""
-        a1, a2  = self.constants()
+        a1, a2 = self.constants()
         a1 = dct.get(a1, None)
         if a1 is not None:
             self.equ[0] = a1
@@ -703,6 +809,7 @@ class CrossCosCubeDihedAngleAngleTerm(CrossDihedAngleAngleTerm):
 #
 #     def write_ff_header(self, software, writer):
 #         return software.write_cross_dihed_dihed_header(writer)
+
 
 def check_if_in_a_fully_planar_ring(topo, a2, a3):
     rings = [r for r in topo.rings if set([a2, a3]).issubset(set(r))]

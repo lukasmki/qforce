@@ -2,7 +2,6 @@ from .creator import CustomStructureCreator, CalculationStorage
 
 
 class HessianCreator(CustomStructureCreator):
-
     def __init__(self, mol, weight=0):
         super().__init__(weight)
         #
@@ -12,13 +11,13 @@ class HessianCreator(CustomStructureCreator):
         self._hessian = CalculationStorage()
         self._charges = CalculationStorage()
 
-    def enouts(self, select='all'):
+    def enouts(self, select="all"):
         return []
 
-    def gradouts(self, select='all'):
+    def gradouts(self, select="all"):
         return []
 
-    def hessouts(self, select='all'):
+    def hessouts(self, select="all"):
         return self._hessian.results
 
     def main_hessian(self):
@@ -28,7 +27,9 @@ class HessianCreator(CustomStructureCreator):
 
     def setup_main(self, qm):
         folder = qm.pathways.getdir("hessian", create=True)
-        self._hessian.calculations.append(qm.setup_hessian_calculation(folder, self.init_coords, self.atnums))
+        self._hessian.calculations.append(
+            qm.setup_hessian_calculation(folder, self.init_coords, self.atnums)
+        )
 
     def check_main(self):
         return self._check(self._hessian.calculations)
@@ -46,7 +47,8 @@ class HessianCreator(CustomStructureCreator):
         folder = self.pathways.getdir("hessian_charge", create=True)
         for qm_out in self._hessian.results:
             self._charges.calculations.append(
-                    qm.setup_charge_calculation(folder, qm_out.coords, qm_out.atomids))
+                qm.setup_charge_calculation(folder, qm_out.coords, qm_out.atomids)
+            )
 
     def check_post(self):
         return self._check(self._charges.calculations)
@@ -59,4 +61,5 @@ class HessianCreator(CustomStructureCreator):
             point_charges = qm.read_charges(files)
             output = self._hessian.results[i]
             output.point_charges = output.check_type_and_shape(
-                    point_charges, 'point_charges', float, (output.n_atoms,))
+                point_charges, "point_charges", float, (output.n_atoms,)
+            )

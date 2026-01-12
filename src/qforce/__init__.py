@@ -1,3 +1,3 @@
-__all__ = ['run_qforce']
+__all__ = ["run_qforce"]
 
 from .main import run_qforce

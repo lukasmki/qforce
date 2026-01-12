@@ -135,6 +135,10 @@ def multi_fit(logger, config, mol, structs):
     # reg = Ridge(alpha=1e-6, fit_intercept=False).fit(A, B, sample_weight=weights)
     # fit = reg.coef_
 
+    # logger.info("Using ElasticNet...")
+    # reg = ElasticNet(alpha=1e-6, fit_intercept=False).fit(A, B, sample_weight=weights)
+    # fit = reg.coef_
+
     logger.info("Done!\n")
 
     with mol.terms.add_ignore('charge_flux'):

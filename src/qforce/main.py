@@ -14,6 +14,8 @@ from .logger import LoggerExit
 from .schemes import Computations, HessianCreator, CrestCreator
 from .schemes import DihedralCreator
 
+# from .schemes import BDECreator
+
 
 def runjob(config, job, ext_q=None, ext_lj=None):
 
@@ -83,6 +85,7 @@ def do_all_structs(job, config, qm_interface, mol):
     structs = Computations(config.addstructs, folder)
     structs.register('dihedrals', DihedralCreator(mol, job, config))
     structs.register('hessian', HessianCreator(mol))
+    # structs.register("bde", BDECreator(mol, config))
     #
     structs.activate('fromfile')
     structs.activate('xtbmd', mol.all_coords)
@@ -149,14 +152,14 @@ def run_qforce(input_arg, ext_q=None, ext_lj=None, config=None, presets=None, er
     """Execute Qforce from python directly """
     config, job = initialize(input_arg, config, presets)
     #
+    mol = None
     if err is True:
-        return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
+        mol = runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
     else:
         try:
-            return runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
+            mol = runspjob(config, job, ext_q=ext_q, ext_lj=ext_lj)
         except LoggerExit as err:
             print(str(err))
-
     return mol
 
 

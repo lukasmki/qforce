@@ -105,7 +105,8 @@ def _get_job_info(filename):
     job["calculators"] = {}
     job["calkeeper"] = CalculationKeeper()
     job["Calculation"] = job["calkeeper"].get_calcls()
-    job["md_data"] = resources.path("qforce", "data")
+    with resources.path("qforce", "data") as md_data:
+        job["md_data"] = str(md_data)
     os.makedirs(job["dir"], exist_ok=True)
     return SimpleNamespace(**job)
 

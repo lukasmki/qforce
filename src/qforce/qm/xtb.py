@@ -837,6 +837,8 @@ class ReadxTB(ReadABC):
         b_orders = [[0 for _ in range(n_atoms)] for _ in range(n_atoms)]
 
         file = np.loadtxt(out_file)
+        if file.ndim == 1:
+            file = file[None, :]
         for x, y, bo in file:
             b_orders[int(x) - 1][int(y) - 1] = bo
             b_orders[int(y) - 1][int(x) - 1] = bo
